@@ -64,6 +64,9 @@ def on_message(client, userdata, message):
     if channel in channels or (len(channel) >= 1 and channel[0] == '\\'):
         response_topic = f'{topic_prefix}to/irc/{channel}/notice'
 
+        if '!' in nick:
+            nick = nick.split('!')[0]
+
         tokens  = text.split(' ')
 
         command = tokens[0][1:]
@@ -115,7 +118,7 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                verbose = True if len(tokens) == 2 and tokens[1] == '-v' else False
+                verbose = True #if len(tokens) == 2 and tokens[1] == '-v' else False
 
                 word = tokens[0][0:-1]
 
