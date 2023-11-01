@@ -27,6 +27,7 @@ prefix       = '!'  # !command, will be updated by ghbot
 netherlands_tz = pytz.timezone("Europe/Amsterdam")
 
 prev_j = None
+prev_j2 = None
 
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
@@ -36,6 +37,7 @@ def announce_commands(client):
 def on_message(client, userdata, message):
     global prefix
     global prev_j
+    global prev_j2
 
     text = message.payload.decode('utf-8')
 
@@ -69,22 +71,32 @@ def on_message(client, userdata, message):
         if command == 'nlenergie':
             try:
                 parts = text.split()
-                verbose = True if len(parts) >= 2 and parts[1] == '-v' else False
+
+                verbose = '-v' in parts
+                very_verbose = '-vv' in parts
+
                 headers = { 'User-Agent': 'Kiki' }
 
                 r = requests.get('http://stofradar.nl:9001/electricity/generation', timeout=2, headers=headers)
 
+                r2 = requests.get('http://stofradar.nl:9001/electricity/price', timeout=2, headers=headers)
+
                 try:
                     j = json.loads(r.content.decode('ascii'))
+                    j2 = json.loads(r2.content.decode('ascii'))
 
                     t = j['time']
 
                     prev_j = j
+                    prev_j2 = j2
 
                 except Exception as e:
                     j = prev_j
+                    j2 = prev_j2
 
                     t = j['time']
+
+                price = j2['current']['price']
 
                 total = j['total']
 
@@ -121,7 +133,12 @@ def on_message(client, userdata, message):
                     else:
                         color_index = (abs(hash(source['color']) * 9) % 13) + 2
 
-                    out += f"\3{color_index}{source['id']}: {source['power']} MW ({perc:.2f}%)"
+                    out += f"\3{color_index}{source['id']}: {source['power']} MW ({perc:.2f}%"
+
+                    if very_verbose:
+                        out += f", {source['power'] * price:.2f}€/h"
+
+                    out += ')'
 
                     outblocks += f'\3{color_index}'
                     outblocks += '\u2588' * math.ceil(not_perc)
