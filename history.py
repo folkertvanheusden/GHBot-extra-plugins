@@ -80,7 +80,7 @@ def on_message(client, userdata, message):
             query = "INSERT INTO history(`when`, channel, nick, what) VALUES(strftime('%Y-%m-%d %H:%M:%S', 'now'), ?, ?, ?)"
 
             cur = con.cursor()
-            cur.execute(query, (channel, nick, text))
+            cur.execute(query, (channel, nick.lower(), text))
             cur.close()
 
             con.commit()
@@ -97,7 +97,11 @@ def on_message(client, userdata, message):
                 result = cur.fetchone()
                 cur.close()
 
-                client.publish(response_topic, f'It was {result[1]} when {tokens[1]} said "{result[0]}"')
+                if result == None:
+                    client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+
+                else:
+                    client.publish(response_topic, f'It was {result[1]} when {tokens[1]} said "{result[0]}"')
 
     except Exception as e:
         print(f'{e}, line number: {e.__traceback__.tb_lineno}')
