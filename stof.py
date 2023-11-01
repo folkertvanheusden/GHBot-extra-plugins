@@ -73,7 +73,7 @@ def on_message(client, userdata, message):
                 address = text[text.find(' ') + 1:].strip()
                 g = geocoder.osm(address)
 
-                if g == None:
+                if g == None or g.osm == None or not 'x' in g.osm:
                     client.publish(response_topic, f'Cannot resolve that address')
                     return
 
