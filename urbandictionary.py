@@ -63,7 +63,7 @@ def on_message(client, userdata, message):
                 out = []
 
                 for item in data['list']:
-                    current_out = item['definition'] + ' (' + item['example'] + ')'
+                    current_out = f'\3{5}' + item['definition'] + f'\3{8} (' + item['example'] + f')\3{2}'
                     l = len(current_out)
 
                     if out_len + l < 300 or len(out) == 0:
@@ -74,7 +74,11 @@ def on_message(client, userdata, message):
 
                     out_len += l
 
-                client.publish(response_topic, ', '.join(out))
+                if len(out) == 0:
+                    client.publish(response_topic, 'No definition found')
+
+                else:
+                    client.publish(response_topic, ', '.join(out))
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
