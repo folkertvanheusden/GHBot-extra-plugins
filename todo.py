@@ -31,6 +31,7 @@ cur.close()
 
 cur = con.cursor()
 cur.execute('PRAGMA journal_mode=wal')
+cur.execute('PRAGMA encoding="UTF-8"')
 cur.close()
 
 con.commit()
