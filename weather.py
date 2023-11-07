@@ -1,7 +1,5 @@
 #! /usr/bin/python3
 
-import arabic_reshaper
-from bidi.algorithm import get_display
 import math
 import paho.mqtt.client as mqtt
 import requests
