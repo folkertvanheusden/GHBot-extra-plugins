@@ -50,6 +50,8 @@ def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
     client.publish(target_topic, 'cmd=firstseen|descr=when was a person first seen')
+    client.publish(target_topic, 'cmd=searchhistory|descr=when was a text-string seen')
+    client.publish(target_topic, 'cmd=searchhistorybynick|descr=when was a text-string seen, by nick')
 
 def on_message(client, userdata, message):
     global history
@@ -103,6 +105,48 @@ def on_message(client, userdata, message):
 
                 else:
                     client.publish(response_topic, f'It was {result[1]} when {tokens[1]} said "{result[0]}"')
+
+            elif (command == 'searchhistory' or command == 'searchhistorybynick') and tokens[0][0] == prefix and len(tokens) >= (3 if command == 'searchhistorybynick' else 2):
+                cur = con.cursor()
+
+                if command == 'searchhistorybynick':
+                    what = '%' + text[text.find(' ', text.find(' ') + 1) + 1:].strip() + '%'
+                    cur.execute('SELECT what, `when`, nick FROM history WHERE channel=? AND nick=? AND what like ? AND DATE(`when`) != DATE() ORDER BY RANDOM() LIMIT 25', (channel.lower(), tokens[1].lower(), what))
+                else:
+                    what = '%' + text[text.find(' ') + 1:].strip() + '%'
+                    cur.execute('SELECT what, `when`, nick FROM history WHERE channel=? AND what like ? AND DATE(`when`) != DATE() ORDER BY RANDOM() LIMIT 25', (channel.lower(), what))
+
+                out = None
+                color = False
+
+                while True:
+                    result = cur.fetchone()
+                    if result == None:
+                        break
+
+                    new = '\3'
+                    new += '15' if color else '5'
+                    color = not color
+
+                    if command == 'searchhistorybynick':
+                        new += f'It was {result[1]} when {tokens[1]} said "{result[0]}"'
+                    else:
+                        new += f'It was {result[1]} when {result[2]} said "{result[0]}"'
+
+                    if out == None:
+                        out = new
+                    else:
+                        if len(out) + len(new) > 8192:
+                            break
+                        out += ' ' + new
+
+                cur.close()
+
+                if out == None:
+                    client.publish(response_topic, f'no-one ever said "{what[1:-1]}" in {channel}')
+
+                else:
+                    client.publish(response_topic, out)
 
     except Exception as e:
         print(f'{e}, line number: {e.__traceback__.tb_lineno}')
