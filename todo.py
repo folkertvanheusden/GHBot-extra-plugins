@@ -98,7 +98,7 @@ def on_message(client, userdata, message):
 
                 try:
                     nr = tokens[1]
-                    cur.execute('DELETE FROM todo WHERE channel=? AND nr=? AND added_by=?', (channel, nr, nick))
+                    cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
 
                     if cur.rowcount == 1:
                         client.publish(response_topic, f'Todo item {nr} deleted')
@@ -123,7 +123,7 @@ def on_message(client, userdata, message):
 
                 word = tokens[0][0:-1]
 
-                cur.execute('SELECT value, nr FROM todo WHERE channel=? AND added_by=? ORDER BY nr DESC', (channel, nick.lower()))
+                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY nr DESC', (nick.lower(),))
 
                 todo = None
 
