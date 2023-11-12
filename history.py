@@ -123,32 +123,40 @@ def on_message(client, userdata, message):
                     client.publish(response_topic, out)
 
             elif command == 'personstats' and tokens[0][0] == prefix and len(tokens) >= 2:
+                verbose = '-v' in tokens
+
+                if verbose:
+                    for what in ('%H', '%Y', '%m'):
+                        cur = con.cursor()
+                        cur.execute('SELECT strftime("%s", `when`), COUNT(*) AS n FROM history WHERE channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") GROUP BY strftime("%s", `when`) ORDER BY strftime("%s", `when`) ASC' % (what, what, what), (channel.lower(), tokens[1].lower()))
+                        results = cur.fetchall()
+                        cur.close()
+
+                        if results == None:
+                            client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+
+                        else:
+                            total = sum([result[1] for result in results])
+
+                            percentages = []
+                            out = []
+                            for result in results:
+                                percentage = int(result[1]) * 100 / total
+                                percentages.append(percentage)
+                                out.append(f'{result[0]}: {percentage:.2f}%')
+
+                            client.publish(response_topic, (', '.join(out)) + ' - ' + sparkline(percentages)[2])
+
                 cur = con.cursor()
-                cur.execute('SELECT strftime("%H", `when`), COUNT(*) AS n FROM history WHERE channel=? AND nick=? GROUP BY strftime("%H", `when`) ORDER BY strftime("%H", `when`) ASC', (channel.lower(), tokens[1].lower()))
+                cur.execute('select what, count(*) from history where channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") group by what order by count(*) desc limit 10', (channel.lower(), tokens[1].lower()))
                 results = cur.fetchall()
                 cur.close()
 
-                if results == None:
-                    client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+                if results != None:
+                    client.publish(response_topic, ', '.join([f'{result[0]}: {result[1]}' for result in results]))
 
                 else:
-                    total = sum([result[1] for result in results])
-
-                    percentages = []
-                    out = []
-                    for result in results:
-                        percentage = int(result[1]) * 100 / total
-                        percentages.append(percentage)
-                        out.append(f'{result[0]}: {percentage:.2f}%')
-
-                    client.publish(response_topic, (', '.join(out)) + ' - ' + sparkline(percentages)[2])
-
-                    cur = con.cursor()
-                    cur.execute('select what, count(*) from history where channel=? AND nick=? group by what order by count(*) desc limit 10', (channel.lower(), tokens[1].lower()))
-                    results = cur.fetchall()
-                    cur.close()
-
-                    client.publish(response_topic, ', '.join([f'{result[0]}: {result[1]}' for result in results]))
+                    client.publish(response_topic, f'{tokens[1]} was never in {channel}')
 
             elif (command == 'searchhistory' or command == 'searchhistorybynick') and tokens[0][0] == prefix and len(tokens) >= (3 if command == 'searchhistorybynick' else 2):
                 cur = con.cursor()
