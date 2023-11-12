@@ -52,6 +52,18 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=firstseen|descr=when was a person first seen')
     client.publish(target_topic, 'cmd=searchhistory|descr=when was a text-string seen')
     client.publish(target_topic, 'cmd=searchhistorybynick|descr=when was a text-string seen, by nick')
+    client.publish(target_topic, 'cmd=personstats|descr=statistics of a person')
+
+def sparkline(numbers):
+    # bar = u'\u9601\u9602\u9603\u9604\u9605\u9606\u9607\u9608'
+    bar = chr(9601) + chr(9602) + chr(9603) + chr(9604) + chr(9605) + chr(9606) + chr(9607) + chr(9608)
+    barcount = len(bar)
+
+    mn, mx = min(numbers), max(numbers)
+    extent = mx - mn
+    sparkline = ''.join(bar[min([barcount - 1, int((n - mn) / extent * barcount)])] for n in numbers)
+
+    return mn, mx, sparkline
 
 def on_message(client, userdata, message):
     global history
@@ -96,15 +108,47 @@ def on_message(client, userdata, message):
 
             if command == 'firstseen' and tokens[0][0] == prefix and len(tokens) >= 2:
                 cur = con.cursor()
-                cur.execute('SELECT what, `when` FROM history WHERE channel=? AND nick=? ORDER BY `when` ASC LIMIT 1', (channel.lower(), tokens[1].lower()))
-                result = cur.fetchone()
+                cur.execute('SELECT what, `when` FROM history WHERE channel=? AND nick=? ORDER BY `when` ASC LIMIT 3', (channel.lower(), tokens[1].lower()))
+                results = cur.fetchall()
                 cur.close()
 
-                if result == None:
+                if results == None:
                     client.publish(response_topic, f'{tokens[1]} was never in {channel}')
 
                 else:
-                    client.publish(response_topic, f'It was {result[1]} when {tokens[1]} said "{result[0]}"')
+                    out = ''
+                    for result in results:
+                        out += f'It was {result[1]} when {tokens[1]} said "{result[0]}" '
+
+                    client.publish(response_topic, out)
+
+            elif command == 'personstats' and tokens[0][0] == prefix and len(tokens) >= 2:
+                cur = con.cursor()
+                cur.execute('SELECT strftime("%H", `when`), COUNT(*) AS n FROM history WHERE channel=? AND nick=? GROUP BY strftime("%H", `when`) ORDER BY strftime("%H", `when`) ASC', (channel.lower(), tokens[1].lower()))
+                results = cur.fetchall()
+                cur.close()
+
+                if results == None:
+                    client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+
+                else:
+                    total = sum([result[1] for result in results])
+
+                    percentages = []
+                    out = []
+                    for result in results:
+                        percentage = int(result[1]) * 100 / total
+                        percentages.append(percentage)
+                        out.append(f'{result[0]}: {percentage:.2f}%')
+
+                    client.publish(response_topic, (', '.join(out)) + ' - ' + sparkline(percentages)[2])
+
+                    cur = con.cursor()
+                    cur.execute('select what, count(*) from history where channel=? AND nick=? group by what order by count(*) desc limit 10', (channel.lower(), tokens[1].lower()))
+                    results = cur.fetchall()
+                    cur.close()
+
+                    client.publish(response_topic, ', '.join([f'{result[0]}: {result[1]}' for result in results]))
 
             elif (command == 'searchhistory' or command == 'searchhistorybynick') and tokens[0][0] == prefix and len(tokens) >= (3 if command == 'searchhistorybynick' else 2):
                 cur = con.cursor()

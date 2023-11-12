@@ -41,7 +41,8 @@ def announce_commands(client):
 
     client.publish(target_topic, 'cmd=addtodo|descr=add an item to your todo-list')
     client.publish(target_topic, 'cmd=deltodo|descr=delete an item from your todo-list')
-    client.publish(target_topic, "cmd=todo|descr=get a list of your todo's")
+    client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
+    client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
 
 def on_message(client, userdata, message):
     global prefix
@@ -141,6 +142,22 @@ def on_message(client, userdata, message):
 
                 else:
                     client.publish(response_topic, f'{nick}: -nothing-')
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
+
+        elif command == 'randomtodo' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
+                row = cur.fetchone()
+
+                item = f'{row[0]} ({row[1]})' if row else '-nothing-'
+
+                client.publish(response_topic, f'{nick}: {item}')
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
