@@ -99,10 +99,17 @@ def on_message(client, userdata, message):
 
                 try:
                     nr = tokens[1]
+                    cur.execute('SELECT value FROM todo WHERE nr=?', (nr,))
+                    row = cur.fetchone()
+
                     cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
 
                     if cur.rowcount == 1:
-                        client.publish(response_topic, f'Todo item {nr} deleted')
+                        if row != None:
+                            client.publish(response_topic, f'Todo item {nr} deleted ({row[0]})')
+
+                        else:
+                            client.publish(response_topic, f'Todo item {nr} deleted')
 
                     else:
                         client.publish(response_topic, f'Todo item {nr} is either not yours or does not exist')
