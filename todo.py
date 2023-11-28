@@ -79,40 +79,42 @@ def on_message(client, userdata, message):
 
                 cur = con.cursor()
 
-                try:
-                    cur.execute('INSERT INTO todo(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, todo_item))
-                    nr = cur.lastrowid
-                    client.publish(response_topic, f'Todo item stored under number {nr}')
+                for item in todo_item.split('/'):
+                    try:
+                        cur.execute('INSERT INTO todo(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, item))
+                        nr = cur.lastrowid
+                        client.publish(response_topic, f'Todo item "{item}" stored under number {nr}')
 
-                except Exception as e:
-                    client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+                        con.commit()
+
+                    except Exception as e:
+                        client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
 
                 cur.close()
-                con.commit()
 
             else:
                 client.publish(response_topic, 'Todo item missing')
 
         elif command == 'deltodo' and tokens[0][0] == prefix:
-            if len(tokens) == 2:
+            if len(tokens) >= 2:
                 cur = con.cursor()
 
                 try:
-                    nr = tokens[1]
-                    cur.execute('SELECT value FROM todo WHERE nr=?', (nr,))
-                    row = cur.fetchone()
+                    for nr in tokens[1:]:
+                        cur.execute('SELECT value FROM todo WHERE nr=?', (nr,))
+                        row = cur.fetchone()
 
-                    cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
+                        cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
 
-                    if cur.rowcount == 1:
-                        if row != None:
-                            client.publish(response_topic, f'Todo item {nr} deleted ({row[0]})')
+                        if cur.rowcount == 1:
+                            if row != None:
+                                client.publish(response_topic, f'Todo item {nr} deleted ({row[0]})')
+
+                            else:
+                                client.publish(response_topic, f'Todo item {nr} deleted')
 
                         else:
-                            client.publish(response_topic, f'Todo item {nr} deleted')
-
-                    else:
-                        client.publish(response_topic, f'Todo item {nr} is either not yours or does not exist')
+                            client.publish(response_topic, f'Todo item {nr} is either not yours or does not exist')
 
                 except Exception as e:
                     client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
