@@ -39,10 +39,12 @@ con.commit()
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
-    client.publish(target_topic, 'cmd=addtodo|descr=add an item to your todo-list')
-    client.publish(target_topic, 'cmd=deltodo|descr=delete an item from your todo-list')
+    client.publish(target_topic, 'cmd=addtodo|descr=add an item (or multiple, seperated by /) to your todo-list')
+    client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
     client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
+    client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
+    client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
 
 def on_message(client, userdata, message):
     global prefix
@@ -94,6 +96,57 @@ def on_message(client, userdata, message):
 
             else:
                 client.publish(response_topic, 'Todo item missing')
+
+        elif command == 'setdefaulttodo' and tokens[0][0] == prefix:
+            # sqlite> create table dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL);
+            if len(tokens) >= 2:
+                todo_item = text[text.find(' ') + 1:]
+
+                cur = con.cursor()
+
+                try:
+                    cur.execute('DELETE FROM dflt WHERE channel=? AND added_by=?', (channel, nick))
+                    cur.execute('INSERT INTO dflt(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, todo_item))
+                    client.publish(response_topic, f'Default todo items set')
+
+                    con.commit()
+
+                except Exception as e:
+                    client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+                cur.close()
+
+            else:
+                client.publish(response_topic, 'Todo item(s) missing')
+
+        elif command == 'usedefaulttodo' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                cur.execute('SELECT value FROM dflt WHERE channel=? AND added_by=?', (channel, nick))
+                row = cur.fetchone()
+
+                if row == None:
+                    client.publish(response_topic, f'No default todo items set')
+
+                else:
+                    n = 0
+                    for item in row[0].split('/'):
+                        try:
+                            cur.execute('INSERT INTO todo(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, item))
+                            n += 1
+
+                        except Exception as e:
+                            client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+                    client.publish(response_topic, f'Added {n} item(s)')
+
+                con.commit()
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
 
         elif command == 'deltodo' and tokens[0][0] == prefix:
             if len(tokens) >= 2:
