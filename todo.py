@@ -183,10 +183,10 @@ def on_message(client, userdata, message):
 
             try:
                 verbose = True #if len(tokens) == 2 and tokens[1] == '-v' else False
-
                 word = tokens[0][0:-1]
+                who = (tokens[1] if len(tokens) >= 2 else nick).lower()
 
-                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY nr DESC', (nick.lower(),))
+                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY nr DESC', (who,))
 
                 todo = None
 
