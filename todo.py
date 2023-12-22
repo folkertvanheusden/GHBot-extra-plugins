@@ -83,7 +83,7 @@ def on_message(client, userdata, message):
 
                 for item in todo_item.split('/'):
                     try:
-                        cur.execute('INSERT INTO todo(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, item))
+                        cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item))
                         nr = cur.lastrowid
                         client.publish(response_topic, f'Todo item "{item}" stored under number {nr}')
 
@@ -133,7 +133,7 @@ def on_message(client, userdata, message):
                     n = 0
                     for item in row[0].split('/'):
                         try:
-                            cur.execute('INSERT INTO todo(channel, added_by, value) VALUES(?, ?, ?)', (channel, nick, item))
+                            cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item))
                             n += 1
 
                         except Exception as e:
@@ -154,17 +154,23 @@ def on_message(client, userdata, message):
 
                 try:
                     for nr in tokens[1:]:
-                        cur.execute('SELECT value FROM todo WHERE nr=?', (nr,))
+                        cur.execute("SELECT value, added_when, JULIANDAY(strftime('%Y-%m-%d %H:%M:%S', 'now')) - JULIANDAY(added_when) as took FROM todo WHERE nr=?", (nr,))
                         row = cur.fetchone()
+
+                        took = row[2]
+                        if took < 86400:
+                            took = f' Took: {took * 86400:.2f} seconds' if took != None else ''
+                        else:
+                            took = f' Took: {took:.2f} days' if took != None else ''
 
                         cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
 
                         if cur.rowcount == 1:
                             if row != None:
-                                client.publish(response_topic, f'Todo item {nr} deleted ({row[0]})')
+                                client.publish(response_topic, f'Todo item {nr} deleted ({row[0]}){took}')
 
                             else:
-                                client.publish(response_topic, f'Todo item {nr} deleted')
+                                client.publish(response_topic, f'Todo item {nr} deleted{took}')
 
                         else:
                             client.publish(response_topic, f'Todo item {nr} is either not yours or does not exist')
