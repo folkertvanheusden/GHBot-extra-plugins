@@ -50,6 +50,7 @@ def announce_commands(client):
     client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
     client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
     client.publish(target_topic, "cmd=getdefaulttodo|descr=show default list of todos")
+    client.publish(target_topic, "cmd=cleardefaulttodo|descr=clear the default list of todos")
 
 def on_message(client, userdata, message):
     global prefix
@@ -131,6 +132,26 @@ def on_message(client, userdata, message):
             cur.close()
 
             client.publish(response_topic, f'Tag {tag} set on {n} item(s)')
+
+        elif command == 'cleardefaulttodo' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                cur.execute('SELECT value FROM dflt WHERE channel=? AND added_by=?', (channel, nick))
+                row = cur.fetchone()
+
+                cur.execute('DELETE FROM dflt WHERE channel=? AND added_by=?', (channel, nick))
+                con.commit()
+
+                if row == None:
+                    client.publish(response_topic, f'Default todo cleared')
+                else:
+                    client.publish(response_topic, f'Default todo ({row[0]}) cleared')
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
 
         elif command == 'setdefaulttodo' and tokens[0][0] == prefix:
             # sqlite> create table dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL);
