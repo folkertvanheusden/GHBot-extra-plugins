@@ -11,7 +11,7 @@ import time
 mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
 mqtt_port    = 18830
 topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'knageroe']  # TODO: channels to respond to
+channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
 prefix       = '!'
 
 def announce_commands(client):
@@ -66,13 +66,9 @@ def on_message(client, userdata, message):
                     current_out = f'\3{5}' + item['definition'] + f'\3{8} (' + item['example'] + f')\3{2}'
                     l = len(current_out)
 
-                    if out_len + l < 300 or len(out) == 0:
+                    if out_len + l < 300:
                         out.append(current_out)
-
-                    else:
-                        break
-
-                    out_len += l
+                        out_len += l
 
                 if len(out) == 0:
                     client.publish(response_topic, 'No definition found')
@@ -82,7 +78,6 @@ def on_message(client, userdata, message):
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
-
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe(f'{topic_prefix}from/irc/#')
