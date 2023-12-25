@@ -165,9 +165,22 @@ def on_message(client, userdata, message):
 
                 else:
                     n = 0
-                    for item in row[0].split('/'):
+                    for todo_item in row[0].split('/'):
                         try:
+                            tag = None
+                            pipe_char = todo_item.find('|')
+                            if pipe_char != -1:
+                                tag = todo_item[0:pipe_char].lower()
+                                item = todo_item[pipe_char+1:]
+                            else:
+                                item = todo_item
+
                             cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item))
+
+                            if tag != None:
+                                nr = cur.lastrowid
+                                cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag))
+
                             n += 1
 
                         except Exception as e:
