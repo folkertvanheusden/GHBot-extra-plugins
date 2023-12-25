@@ -24,6 +24,8 @@ cur = con.cursor()
 try:
     cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL)')
     cur.execute('CREATE INDEX learn_key ON learn(key)')
+    cur.execute('CREATE TABLE tags(nr INTEGER PRIMARY KEY NOT NULL, tagname VARCHAR(255) NOT NULL)')
+    cur.execute('create unique index tags_index on tags(nr, tagname)')
 except sqlite3.OperationalError as oe:
     # should be "table already exists"
     pass
@@ -40,8 +42,10 @@ def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
     client.publish(target_topic, 'cmd=addtodo|descr=add an item (or multiple, seperated by /) to your todo-list')
+    client.publish(target_topic, 'cmd=settag|descr=sets a tag on an existing todo-item')
     client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
+    client.publish(target_topic, "cmd=todotags|descr=get a list of your tags")
     client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
     client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
     client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
@@ -79,6 +83,12 @@ def on_message(client, userdata, message):
             if len(tokens) >= 2:
                 todo_item = text[text.find(' ') + 1:]
 
+                tag = None
+                pipe_char = todo_item.find('|')
+                if pipe_char != -1:
+                    tag = todo_item[0:pipe_char].lower()
+                    todo_item = todo_item[pipe_char+1:]
+
                 cur = con.cursor()
 
                 for item in todo_item.split('/'):
@@ -86,6 +96,9 @@ def on_message(client, userdata, message):
                         cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item))
                         nr = cur.lastrowid
                         client.publish(response_topic, f'Todo item "{item}" stored under number {nr}')
+
+                        if tag != None:
+                            cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag))
 
                         con.commit()
 
@@ -96,6 +109,27 @@ def on_message(client, userdata, message):
 
             else:
                 client.publish(response_topic, 'Todo item missing')
+ 
+        elif command == 'settag' and tokens[0][0] == prefix:
+                cur = con.cursor()
+
+                tag = tokens[1].lower()
+
+                n = 0
+
+                for item in tokens[2:]:
+                    try:
+                        cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag))
+
+                        n += cur.rowcount
+
+                    except Exception as e:
+                        pass
+
+                con.commit()
+                cur.close()
+
+                client.publish(response_topic, f'Tag {tag} set on {n} item(s)')
 
         elif command == 'setdefaulttodo' and tokens[0][0] == prefix:
             # sqlite> create table dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL);
@@ -158,12 +192,14 @@ def on_message(client, userdata, message):
                         row = cur.fetchone()
 
                         took = row[2]
-                        if took < 86400:
-                            took = f' Took: {took * 86400:.2f} seconds' if took != None else ''
+                        if took == None:
+                            took = ''
+                        elif took < 86400:
+                            took = f' Took: {took * 86400:.2f} seconds'
                         else:
-                            took = f' Took: {took:.2f} days' if took != None else ''
+                            took = f' Took: {took:.2f} days'
 
-                        cur.execute('DELETE FROM todo WHERE nr=? AND added_by=?', (nr, nick))
+                        cur.execute("UPDATE todo SET finished_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
 
                         if cur.rowcount == 1:
                             if row != None:
@@ -184,15 +220,42 @@ def on_message(client, userdata, message):
             else:
                 client.publish(response_topic, 'Invalid number of parameters: parameter should be the todo-number')
 
+        elif command == 'todotags' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                cur.execute('SELECT DISTINCT tagname FROM todo, tags WHERE added_by=? AND todo.nr=tags.nr', (nick,))
+
+                tags = []
+
+                for row in cur.fetchall():
+                    tags.append(row[0])
+
+                tag_list = ', '.join(tags)
+
+                if tag_list != None:
+                    client.publish(response_topic, f'{nick}: {tag_list}')
+
+                else:
+                    client.publish(response_topic, f'{nick}: -nothing-')
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
+
         elif command == 'todo' and tokens[0][0] == prefix:
             cur = con.cursor()
 
             try:
                 verbose = True #if len(tokens) == 2 and tokens[1] == '-v' else False
                 word = tokens[0][0:-1]
-                who = (tokens[1] if len(tokens) >= 2 else nick).lower()
+                tag = tokens[1].lower() if len(tokens) >= 2 else None
 
-                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY nr DESC', (who,))
+                if tag == None:
+                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY nr DESC', (nick,))
+                else:
+                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY todo.nr DESC', (nick, tag))
 
                 todo = None
 
