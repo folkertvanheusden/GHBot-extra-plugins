@@ -49,6 +49,7 @@ def announce_commands(client):
     client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
     client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
     client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
+    client.publish(target_topic, "cmd=getdefaulttodo|descr=show default list of todos")
 
 def on_message(client, userdata, message):
     global prefix
@@ -111,25 +112,25 @@ def on_message(client, userdata, message):
                 client.publish(response_topic, 'Todo item missing')
  
         elif command == 'settag' and tokens[0][0] == prefix:
-                cur = con.cursor()
+            cur = con.cursor()
 
-                tag = tokens[1].lower()
+            tag = tokens[1].lower()
 
-                n = 0
+            n = 0
 
-                for item in tokens[2:]:
-                    try:
-                        cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag))
+            for item in tokens[2:]:
+                try:
+                    cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag))
 
-                        n += cur.rowcount
+                    n += cur.rowcount
 
-                    except Exception as e:
-                        pass
+                except Exception as e:
+                    pass
 
-                con.commit()
-                cur.close()
+            con.commit()
+            cur.close()
 
-                client.publish(response_topic, f'Tag {tag} set on {n} item(s)')
+            client.publish(response_topic, f'Tag {tag} set on {n} item(s)')
 
         elif command == 'setdefaulttodo' and tokens[0][0] == prefix:
             # sqlite> create table dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL);
@@ -152,6 +153,24 @@ def on_message(client, userdata, message):
 
             else:
                 client.publish(response_topic, 'Todo item(s) missing')
+
+        elif command == 'getdefaulttodo' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                cur.execute('SELECT value FROM dflt WHERE channel=? AND added_by=?', (channel, nick))
+                row = cur.fetchone()
+
+                if row == None:
+                    client.publish(response_topic, f'No default todo items set')
+
+                else:
+                    client.publish(response_topic, f'Default todo for {nick}: {row[0]}')
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
 
         elif command == 'usedefaulttodo' and tokens[0][0] == prefix:
             cur = con.cursor()
