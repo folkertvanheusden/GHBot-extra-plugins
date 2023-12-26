@@ -301,9 +301,16 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                verbose = True #if len(tokens) == 2 and tokens[1] == '-v' else False
+                verbose = '-v' in tokens
                 word = tokens[0][0:-1]
-                tag = tokens[1].lower() if len(tokens) >= 2 else None
+
+                tag = None
+                i = 1
+                while i < len(tokens):
+                    if tokens[i] != '-v':
+                        tag = tokens[i].lower()
+                        break
+                    i += 1
 
                 if tag == None:
                     cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY nr DESC', (nick,))
@@ -313,7 +320,15 @@ def on_message(client, userdata, message):
                 todo = None
 
                 for row in cur.fetchall():
-                    item = f'{row[0]} ({row[1]})' if verbose else row[0]
+                    if verbose:
+                        cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
+                        row2 = cur.fetchone()
+                        if row2 == None:
+                            item = f'{row[0]} ({row[1]})'
+                        else:
+                            item = f'{row[0]} ({row[1]} / {row2[0]})'
+                    else:
+                        item = row[0]
 
                     if todo == None:
                         todo = item
@@ -336,7 +351,12 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
+                tag = None if len(tokens) == 1 else tokens[1]
+
+                if tag == None:
+                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
+                else:
+                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(), tag))
                 row = cur.fetchone()
 
                 item = f'{row[0]} ({row[1]})' if row else '-nothing-'
