@@ -301,7 +301,7 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                verbose = '-v' in tokens
+                verbose = True  # '-v' in tokens
                 word = tokens[0][0:-1]
 
                 tag = None
