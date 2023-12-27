@@ -44,6 +44,7 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=addtodo|descr=add an item (or multiple, seperated by /) to your todo-list')
     client.publish(target_topic, 'cmd=settag|descr=sets a tag on an existing todo-item')
     client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
+    client.publish(target_topic, 'cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
     client.publish(target_topic, "cmd=todotags|descr=get a list of your tags")
     client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
@@ -235,9 +236,11 @@ def on_message(client, userdata, message):
 
             cur.close()
 
-        elif command == 'deltodo' and tokens[0][0] == prefix:
+        elif (command == 'deltodo' or command == 'ignoretodo') and tokens[0][0] == prefix:
             if len(tokens) >= 2:
                 cur = con.cursor()
+
+                action = 'ignored' if command == 'ignoretodo' else 'deleted'
 
                 try:
                     for nr in tokens[1:]:
@@ -252,14 +255,17 @@ def on_message(client, userdata, message):
                         else:
                             took = f' Took: {took:.2f} days'
 
-                        cur.execute("UPDATE todo SET finished_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
+                        if command == 'ignoretodo':
+                            cur.execute("UPDATE todo SET deleted_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
+                        else:
+                            cur.execute("UPDATE todo SET finished_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
 
                         if cur.rowcount == 1:
                             if row != None:
-                                client.publish(response_topic, f'Todo item {nr} deleted ({row[0]}){took}')
+                                client.publish(response_topic, f'Todo item {nr} {action} ({row[0]}){took}')
 
                             else:
-                                client.publish(response_topic, f'Todo item {nr} deleted{took}')
+                                client.publish(response_topic, f'Todo item {nr} {action}{took}')
 
                         else:
                             client.publish(response_topic, f'Todo item {nr} is either not yours or does not exist')
