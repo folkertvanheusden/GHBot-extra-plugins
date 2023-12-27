@@ -354,7 +354,7 @@ def on_message(client, userdata, message):
                 tag = None if len(tokens) == 1 else tokens[1]
 
                 if tag == None:
-                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
+                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
                 else:
                     cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(), tag))
                 row = cur.fetchone()
