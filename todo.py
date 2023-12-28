@@ -24,7 +24,7 @@ cur = con.cursor()
 try:
     cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL)')
     cur.execute('CREATE INDEX learn_key ON learn(key)')
-    cur.execute('CREATE TABLE tags(nr INTEGER PRIMARY KEY NOT NULL, tagname VARCHAR(255) NOT NULL)')
+    cur.execute('CREATE TABLE tags(nr INTEGER NOT NULL, tagname VARCHAR(255) NOT NULL)')
     cur.execute('create unique index tags_index on tags(nr, tagname)')
 except sqlite3.OperationalError as oe:
     # should be "table already exists"
@@ -42,7 +42,8 @@ def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
     client.publish(target_topic, 'cmd=addtodo|descr=add an item (or multiple, seperated by /) to your todo-list')
-    client.publish(target_topic, 'cmd=settag|descr=sets a tag on an existing todo-item')
+    client.publish(target_topic, 'cmd=settag|descr=sets a tag on an existing todo-item (settag tag nr nr nr nr...)')
+    client.publish(target_topic, 'cmd=untag|descr=removes a tag from an existing todo-item (untag tag nr nr nr...)')
     client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, 'cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
@@ -133,6 +134,26 @@ def on_message(client, userdata, message):
             cur.close()
 
             client.publish(response_topic, f'Tag {tag} set on {n} item(s)')
+
+        elif command == 'untag' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            tag = tokens[1].lower()
+
+            n = 0
+
+            for item in tokens[2:]:
+                try:
+                    cur.execute('DELETE FROM tags WHERE nr=? and tagname=?', (item, tag))
+                    n += cur.rowcount
+
+                except Exception as e:
+                    pass
+
+            con.commit()
+            cur.close()
+
+            client.publish(response_topic, f'Tag {tag} removed from {n} item(s)')
 
         elif command == 'cleardefaulttodo' and tokens[0][0] == prefix:
             cur = con.cursor()
