@@ -62,6 +62,9 @@ def on_message(client, userdata, message):
     channel = parts[2] if len(parts) >= 3 else 'knageroe'  # default channel if can't be deduced
     nick    = parts[3] if len(parts) >= 4 else 'jemoeder'  # default nick if it can't be deduced
 
+    if 'sagtebotje' in nick:
+        return
+
     command = text[1:].split(' ')[0]
 
     try:
