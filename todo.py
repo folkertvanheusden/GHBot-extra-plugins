@@ -54,6 +54,28 @@ def announce_commands(client):
     client.publish(target_topic, "cmd=getdefaulttodo|descr=show default list of todos")
     client.publish(target_topic, "cmd=cleardefaulttodo|descr=clear the default list of todos")
 
+def get_preferences(nick):
+    if '!' in nick:
+        nick = nick[0:nick.find('!')]
+
+    prefs = dict()
+
+    cur = con.cursor()
+    cur.execute('SELECT key, value FROM preferences WHERE nick=?', (nick.lower(),))
+    for row in cur.fetchall():
+        prefs[row[0]] = row[1]
+    cur.close()
+
+    print(nick, prefs)
+
+    return prefs
+
+def check_preferences_bool(prefs, key, default):
+    if key in prefs:
+        return prefs[key] == '1'
+
+    return default
+
 def on_message(client, userdata, message):
     global prefix
 
@@ -72,6 +94,8 @@ def on_message(client, userdata, message):
     parts   = topic.split('/')
     channel = parts[2] if len(parts) >= 3 else 'knageroe'
     nick    = parts[3] if len(parts) >= 4 else 'jemoeder'
+
+    prefs = get_preferences(nick)
 
     if channel in channels or (len(channel) >= 1 and channel[0] == '\\'):
         response_topic = f'{topic_prefix}to/irc/{channel}/notice'
@@ -97,12 +121,12 @@ def on_message(client, userdata, message):
 
                 for item in todo_item.split('/'):
                     try:
-                        cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item))
+                        cur.execute("INSERT INTO todo(channel, added_by, value, added_when) VALUES(?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))", (channel, nick, item.strip()))
                         nr = cur.lastrowid
                         client.publish(response_topic, f'Todo item "{item}" stored under number {nr}')
 
                         if tag != None:
-                            cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag))
+                            cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag.strip()))
 
                         con.commit()
 
@@ -123,7 +147,7 @@ def on_message(client, userdata, message):
 
             for item in tokens[2:]:
                 try:
-                    cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag))
+                    cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag.strip()))
 
                     n += cur.rowcount
 
@@ -241,7 +265,7 @@ def on_message(client, userdata, message):
 
                             if tag != None:
                                 nr = cur.lastrowid
-                                cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag))
+                                cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (nr, tag.strip()))
 
                             n += 1
 
@@ -328,7 +352,8 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                verbose = True  # '-v' in tokens
+                verbose = check_preferences_bool(prefs, 'todo-verbose', True)
+                colors  = check_preferences_bool(prefs, 'todo-colors', False)
                 word = tokens[0][0:-1]
 
                 tag = None
@@ -350,10 +375,16 @@ def on_message(client, userdata, message):
                     if verbose:
                         cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
                         row2 = cur.fetchone()
-                        if row2 == None:
-                            item = f'{row[0]} ({row[1]})'
+                        if colors:
+                            if row2 == None:
+                                item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
+                            else:
+                                item = f'\3{0}{row[0]} \3{3}({row[1]} / {row2[0]})\3{0}'
                         else:
-                            item = f'{row[0]} ({row[1]} / {row2[0]})'
+                            if row2 == None:
+                                item = f'{row[0]} ({row[1]})'
+                            else:
+                                item = f'{row[0]} ({row[1]} / {row2[0]})'
                     else:
                         item = row[0]
 
