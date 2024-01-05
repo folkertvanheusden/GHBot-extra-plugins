@@ -4,7 +4,9 @@
 
 # either install 'python3-paho-mqtt' or 'pip3 install paho-mqtt'
 
+import os
 import paho.mqtt.client as mqtt
+import random
 import sqlite3
 import threading
 import time
@@ -17,6 +19,8 @@ topic_prefix = 'kiki-ng/'
 channels     = ['test', 'knageroe', 'todo']
 db_file      = 'todo.db'
 prefix       = '!'
+smtp_server  = '172.29.0.11'
+smtp_from    = 'ghbot@vanheusden.com'
 
 con = sqlite3.connect(db_file)
 
@@ -47,12 +51,175 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, 'cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
+    client.publish(target_topic, "cmd=sendtodo|descr=get a list of your todos via e-mail")
     client.publish(target_topic, "cmd=todotags|descr=get a list of your tags")
     client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
     client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
     client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
     client.publish(target_topic, "cmd=getdefaulttodo|descr=show default list of todos")
     client.publish(target_topic, "cmd=cleardefaulttodo|descr=clear the default list of todos")
+
+def ignore_unlink(file):
+    try:
+        os.unlink(file)
+    except Exception as e:
+        print(e)
+
+def send_pdf(con, nick, email):
+    pdf_file = f'/tmp/test{random.random()}.pdf'  # TODO generate random
+
+    print(f'using temporary file {pdf_file}')
+
+    try:
+        cur = con.cursor()
+        cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY nr ASC', (nick,))
+        rows_items = cur.fetchall()
+
+        dict_tags = dict()
+        for row in rows_items:
+            cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
+            row_tag = cur.fetchone()
+            if row_tag != None:
+                dict_tags[row[1]] = row_tag[0]
+
+        cur.close()
+
+        import cairo
+
+        paper_width = 210
+        paper_height = 297
+        margin = 20
+
+        heading_height1 = 25
+
+        text_x = margin * 1.7
+        max_x = paper_width - margin * 1.7 * 2
+        initial_text_y = margin + heading_height1
+
+        item_height = 4
+        pdf = cairo.PDFSurface(pdf_file, paper_width, paper_height)
+        max_n_items = int((paper_height - margin * 2 - initial_text_y - item_height) / item_height)
+        cur_n_items = 0
+
+        new_page_required = True
+
+        # items
+        for row in rows_items:
+            if new_page_required == True:
+                new_page_required = False
+
+                text_y = initial_text_y
+
+                # background rectangle
+                ctx = cairo.Context(pdf)
+                pat = cairo.LinearGradient(0.0, 0.0, 0.0, 1.0)
+                pat.add_color_stop_rgba(0, 0.4, 0.4, 0.6, 0.5)  # First stop, 50% opacity
+                pat.add_color_stop_rgba(1, 0.6, 0.6, 1.0, 1)  # Last stop, 100% opacity
+                ctx.rectangle(margin, margin, paper_width - margin * 2, paper_height - margin * 2)
+                ctx.set_source(pat)
+                ctx.fill()
+                ctx.stroke()
+
+                # heading
+                ctx = cairo.Context(pdf)
+                ctx.set_source_rgb(0.1, 0.1, 0.1)
+                use_heading_height1 = heading_height1
+                ctx.select_font_face('Arial', cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL) 
+                while True:
+                    ctx.set_font_size(use_heading_height1)
+                    text = 'Todo for: ' + nick
+                    xbearing, ybearing, width, height, dx, dy = ctx.text_extents(text)
+                    if width < max_x:
+                        break
+                    use_heading_height1 *= 0.75
+                ctx.move_to(margin + item_height, margin + heading_height1)
+                ctx.show_text(text)
+                ctx.stroke()
+
+                # rectangle around text
+                ctx = cairo.Context(pdf)
+                ctx.set_source_rgb(0.1, 0.1, 0.1)
+                ctx.rectangle(margin * 1.5, text_y + margin / 2, paper_width - margin * 3, paper_height - margin * 2 - text_y)
+                ctx.stroke()
+
+                text_y += margin
+
+            item = row[0].strip()
+            tag = dict_tags[row[1]].strip() if row[1] in dict_tags else None
+
+            ctx = cairo.Context(pdf)
+            ctx.set_source_rgb(0.1, 0.1, 0.1)
+            ctx.set_font_size(item_height)
+            ctx.select_font_face('Courier', cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL) 
+            ctx.move_to(text_x, text_y)
+            text = str(row[1]) + ') ' + item
+            if tag:
+                text += ' (' + tag + ')'
+            xbearing, ybearing, width, height, dx, dy = ctx.text_extents(text)
+            if width > max_x:
+                l = len(text)
+                per_char = width / l
+                h_fits = int(max_x / per_char) // 2
+                text = text[0:h_fits - 2] + '...' + text[l - h_fits + 1:]
+            ctx.show_text(text)
+            ctx.stroke()
+
+            text_y += item_height
+
+            cur_n_items += 1
+            if cur_n_items >= max_n_items:
+                new_page_required = True
+                cur_n_items = 0
+
+                ctx.copy_page()
+
+                #Q clear page
+                ctx = cairo.Context(pdf)
+                pat = cairo.LinearGradient(0.0, 0.0, 0.0, 1.0)
+                pat.add_color_stop_rgba(0, 1.0, 1.0, 1.0, 1.0)
+                ctx.rectangle(0, 0, paper_width, paper_height)
+                ctx.set_source(pat)
+                ctx.fill()
+                ctx.stroke()
+
+        pdf.show_page()
+
+        pdf.finish()
+
+        import smtplib
+        server = smtplib.SMTP(smtp_server, 25)
+
+        from email.mime.application import MIMEApplication
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        #import email.utils
+
+        message = f'Here is your TODO from GHBot!'
+
+        msg = MIMEMultipart()
+        msg['Subject'] = 'Todo PDF'
+        msg['From'] = smtp_from
+        msg['To'] = email
+        #msg['Date'] = email.utils.formatdate()
+        #at = smtp_from.find('@')
+        #d = smtp_from[at+1:]
+        #msg['Message-ID'] = email.utils.make_msgid(domain=d)
+        msg.attach(MIMEText(message, 'plain'))
+        with open(pdf_file, 'rb') as f:
+            attach = MIMEApplication(f.read(), _subtype='pdf')
+            attach.add_header('Content-Disposition', 'attachment', filename='ToDo.pdf')
+            msg.attach(attach)
+        server.send_message(msg)
+
+        server.close()
+
+    except Exception as e:
+        ignore_unlink(pdf_file)
+        return f'Exception: {e}, line number: {e.__traceback__.tb_lineno}'
+
+    ignore_unlink(pdf_file)
+
+    return 'PDF sent!'
 
 def get_preferences(nick):
     if '!' in nick:
@@ -347,6 +514,12 @@ def on_message(client, userdata, message):
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
 
             cur.close()
+
+        elif command == 'sendtodo' and tokens[0][0] == prefix:
+            if len(tokens) != 2:
+                client.publish(response_topic, 'Parameter should be your e-mail address')
+            else:
+                client.publish(response_topic, send_pdf(con, nick, tokens[1]))
 
         elif command == 'todo' and tokens[0][0] == prefix:
             cur = con.cursor()
