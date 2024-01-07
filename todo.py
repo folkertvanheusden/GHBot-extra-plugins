@@ -86,11 +86,13 @@ def send_pdf(con, nick, email):
 
         import cairo
 
-        paper_width = 210 * 72
-        paper_height = 297 * 72
-        margin = 20 * 72
-        item_height = 4 * 72
-        heading_height1 = 25 * 72
+        point_to_millimeter = 72/25.4
+
+        paper_width = 210 * point_to_millimeter
+        paper_height = 297 * point_to_millimeter
+        margin = 20 * point_to_millimeter
+        item_height = 4 * point_to_millimeter
+        heading_height1 = 25 * point_to_millimeter
 
         text_x = margin * 1.7
         max_x = paper_width - margin * 1.7 * 2
