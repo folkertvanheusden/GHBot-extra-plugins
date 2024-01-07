@@ -15,7 +15,7 @@ import sys
 mqtt_server  = 'localhost'
 mqtt_port    = 18830
 topic_prefix = 'kiki-ng/'
-channels     = ['test', 'knageroe']
+channels     = ['test', 'todo', 'knageroe']
 db_file      = 'history.db'
 prefix       = '!'
 

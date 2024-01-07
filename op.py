@@ -15,7 +15,7 @@ import sys
 mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
 mqtt_port    = 18830
 topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'knageroe']  # TODO: channels to respond to
+channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
 prefix       = '!'  # !command, will be updated by ghbot
 db           = 'op.db'
 

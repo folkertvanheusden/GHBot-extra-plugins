@@ -50,14 +50,14 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=untag|descr=removes a tag from an existing todo-item (untag tag nr nr nr...)')
     client.publish(target_topic, 'cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, 'cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
-    client.publish(target_topic, "cmd=todo|descr=get a list of your todos")
-    client.publish(target_topic, "cmd=sendtodo|descr=get a list of your todos via e-mail")
-    client.publish(target_topic, "cmd=todotags|descr=get a list of your tags")
-    client.publish(target_topic, "cmd=randomtodo|descr=list randomly one of your todos")
-    client.publish(target_topic, "cmd=setdefaulttodo|descr=set default list of todos")
-    client.publish(target_topic, "cmd=usedefaulttodo|descr=use default list of todos")
-    client.publish(target_topic, "cmd=getdefaulttodo|descr=show default list of todos")
-    client.publish(target_topic, "cmd=cleardefaulttodo|descr=clear the default list of todos")
+    client.publish(target_topic, 'cmd=todo|descr=get a list of your todos')
+    client.publish(target_topic, 'cmd=sendtodo|descr=get a list of your todos via e-mail')
+    client.publish(target_topic, 'cmd=todotags|descr=get a list of your tags')
+    client.publish(target_topic, 'cmd=randomtodo|descr=list randomly one of your todos')
+    client.publish(target_topic, 'cmd=setdefaulttodo|descr=set default list of todos')
+    client.publish(target_topic, 'cmd=usedefaulttodo|descr=use default list of todos')
+    client.publish(target_topic, 'cmd=getdefaulttodo|descr=show default list of todos')
+    client.publish(target_topic, 'cmd=cleardefaulttodo|descr=clear the default list of todos')
 
 def ignore_unlink(file):
     try:
@@ -86,17 +86,16 @@ def send_pdf(con, nick, email):
 
         import cairo
 
-        paper_width = 210
-        paper_height = 297
-        margin = 20
-
-        heading_height1 = 25
+        paper_width = 210 * 72
+        paper_height = 297 * 72
+        margin = 20 * 72
+        item_height = 4 * 72
+        heading_height1 = 25 * 72
 
         text_x = margin * 1.7
         max_x = paper_width - margin * 1.7 * 2
         initial_text_y = margin + heading_height1
 
-        item_height = 4
         pdf = cairo.PDFSurface(pdf_file, paper_width, paper_height)
         max_n_items = int((paper_height - margin * 2 - initial_text_y - item_height) / item_height)
         cur_n_items = 0
@@ -617,7 +616,7 @@ def announce_thread(client):
 client = mqtt.Client(f'{socket.gethostname()}_{sys.argv[0]}', clean_session=False)
 client.on_message = on_message
 client.on_connect = on_connect
-client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
+client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address='')
 
 t = threading.Thread(target=announce_thread, args=(client,))
 t.start()
