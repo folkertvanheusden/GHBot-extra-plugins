@@ -53,6 +53,7 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=todo|descr=get a list of your todos')
     client.publish(target_topic, 'cmd=sendtodo|descr=get a list of your todos via e-mail')
     client.publish(target_topic, 'cmd=todotags|descr=get a list of your tags')
+    client.publish(target_topic, 'cmd=todostats|descr=get statistics for a todo, by number')
     client.publish(target_topic, 'cmd=randomtodo|descr=list randomly one of your todos')
     client.publish(target_topic, 'cmd=setdefaulttodo|descr=set default list of todos')
     client.publish(target_topic, 'cmd=usedefaulttodo|descr=use default list of todos')
@@ -521,6 +522,36 @@ def on_message(client, userdata, message):
                 client.publish(response_topic, 'Parameter should be your e-mail address')
             else:
                 client.publish(response_topic, send_pdf(con, nick, tokens[1]))
+
+        elif command == 'todostats' and tokens[0][0] == prefix:
+            cur = con.cursor()
+
+            try:
+                if len(tokens) == 2:
+                    nr = int(tokens[1])
+
+                    cur.execute('SELECT finished_when, deleted_when, added_when FROM todo WHERE nr=?', (nr,))
+                    row = cur.fetchone()
+
+                    if row == None:
+                        client.publish(response_topic, 'No such todo')
+                    else:
+                        started_at = row[2]
+
+                        if row[0] != None:
+                            client.publish(response_topic, f'{nr} was started at {started_at} and finished on {row[0]}')
+                        elif row[1] != None:
+                            client.publish(response_topic, f'{nr} was started at {started_at} and deleted on {row[0]}')
+                        else:
+                            client.publish(response_topic, f'{nr} was started at {started_at} and is still on-going')
+
+                else:
+                    client.publish(response_topic, f'Parameter mismatch for todostats')
+
+            except Exception as e:
+                client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+            cur.close()
 
         elif command == 'todo' and tokens[0][0] == prefix:
             cur = con.cursor()
