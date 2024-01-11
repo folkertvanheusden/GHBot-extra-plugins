@@ -27,6 +27,8 @@ cur.close()
 
 con.commit()
 
+op_pending = None
+op_pending_ch = None
 
 def init_db():
     try:
@@ -47,20 +49,19 @@ def announce_commands(client):
     client.publish(target_topic, 'cmd=op|descr=Give a pre-registered user operator-status')
 
 def on_message(client, userdata, message):
+    global op_pending
+    global op_pending_ch
     global prefix
 
-    text = message.payload.decode('utf-8')
-
+    text  = message.payload.decode('utf-8')
     topic = message.topic[len(topic_prefix):]
 
     if topic == 'from/bot/command' and text == 'register':
         announce_commands(client)
-
         return
 
     if topic == 'from/bot/parameter/prefix':
         prefix = text
-
         return
 
     if len(text) == 0:
@@ -72,12 +73,22 @@ def on_message(client, userdata, message):
 
     command = text[1:].split()[0]
 
-    if channel in channels or (len(channel) >= 1 and channel[0] == '\\'):
+    if len(parts) >= 5 and parts[4].isnumeric():  # irc server status
+        command = parts[4]
+
+    if channel in channels or (len(channel) >= 1 and channel[0] == '\\') or command.isnumeric():
         response_topic = f'{topic_prefix}to/irc/{channel}/privmsg'
         command_topic  = f'{topic_prefix}to/irc/{channel}/MODE'
 
         # process any command
-        if command == 'op':
+        if command == '482':
+            if op_pending != None:
+                response_topic = f'{topic_prefix}to/irc/{op_pending_ch}/privmsg'
+                client.publish(response_topic, f"Could not give {op_pending} operator rights: don't have op myself!")
+                op_pending = None
+                op_pending_ch = None
+
+        elif command == 'op':
             try:
                 if not '!' in nick:
                     client.publish(response_topic, f'Incomplete nick')
@@ -96,11 +107,17 @@ def on_message(client, userdata, message):
 
                 else:
                     client.publish(response_topic, f'Applying operator status')
-
                     client.publish(f'{topic_prefix}to/irc/{channel}/mode', f'+o {nick[0:excl]}')
+
+                    op_pending = nick[0:excl]
+                    op_pending_ch = channel
 
             except Exception as e:
                 client.publish(response_topic, f'Op failed: {e}, line number: {e.__traceback__.tb_lineno}')
+
+        else:
+            op_pending = None
+            op_pending_ch = None
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe(f'{topic_prefix}from/irc/#')
