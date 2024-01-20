@@ -73,14 +73,11 @@ def on_message(client, userdata, message):
 
     command = text[1:].split()[0]
 
+    print(parts, text)
+
     if len(parts) >= 5 and parts[4].isnumeric():  # irc server status
         command = parts[4]
 
-    if channel in channels or (len(channel) >= 1 and channel[0] == '\\') or command.isnumeric():
-        response_topic = f'{topic_prefix}to/irc/{channel}/privmsg'
-        command_topic  = f'{topic_prefix}to/irc/{channel}/MODE'
-
-        # process any command
         if command == '482':
             if op_pending != None:
                 response_topic = f'{topic_prefix}to/irc/{op_pending_ch}/privmsg'
@@ -88,7 +85,15 @@ def on_message(client, userdata, message):
                 op_pending = None
                 op_pending_ch = None
 
-        elif command == 'op':
+    elif len(parts) >= 5 and parts[4] == 'MODE':
+        response_topic = f'{topic_prefix}to/irc/{op_pending_ch}/privmsg'
+        client.publish(response_topic, f"Successfully gave {op_pending} operator rights")
+
+    elif channel in channels or (len(channel) >= 1 and channel[0] == '\\') or command.isnumeric():
+        response_topic = f'{topic_prefix}to/irc/{channel}/privmsg'
+        command_topic  = f'{topic_prefix}to/irc/{channel}/MODE'
+
+        if command == 'op':
             try:
                 if not '!' in nick:
                     client.publish(response_topic, f'Incomplete nick')

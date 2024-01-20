@@ -49,10 +49,10 @@ def init_db():
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
-    client.publish(target_topic, 'cmd=firstseen|descr=when was a person first seen')
-    client.publish(target_topic, 'cmd=searchhistory|descr=when was a text-string seen')
-    client.publish(target_topic, 'cmd=searchhistorybynick|descr=when was a text-string seen, by nick')
-    client.publish(target_topic, 'cmd=personstats|descr=statistics of a person')
+    client.publish(target_topic, 'hgrp=history|cmd=firstseen|descr=when was a person first seen')
+    client.publish(target_topic, 'hgrp=history|cmd=searchhistory|descr=when was a text-string seen')
+    client.publish(target_topic, 'hgrp=history|cmd=searchhistorybynick|descr=when was a text-string seen, by nick')
+    client.publish(target_topic, 'hgrp=history|cmd=personstats|descr=statistics of a person')
 
 def sparkline(numbers):
     # bar = u'\u9601\u9602\u9603\u9604\u9605\u9606\u9607\u9608'
