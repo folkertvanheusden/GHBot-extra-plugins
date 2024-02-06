@@ -581,12 +581,12 @@ def on_message(client, userdata, message):
                         cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
                         row2 = cur.fetchone()
                         if colors:
-                            if row2 == None:
+                            if row2 == None or row2[0] == tag:
                                 item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
                             else:
                                 item = f'\3{0}{row[0]} \3{3}({row[1]} / {row2[0]})\3{0}'
                         else:
-                            if row2 == None:
+                            if row2 == None or row2[0] == tag:
                                 item = f'{row[0]} ({row[1]})'
                             else:
                                 item = f'{row[0]} ({row[1]} / {row2[0]})'
