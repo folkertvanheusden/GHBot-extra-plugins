@@ -3,7 +3,9 @@
 # by FvH, released under Apache License v2.0
 
 # either install 'python3-paho-mqtt' or 'pip3 install paho-mqtt'
+# pip3 install irccodes
 
+from irccodes import *
 import os
 import paho.mqtt.client as mqtt
 import random
@@ -59,6 +61,8 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=todo|cmd=usedefaulttodo|descr=use default list of todos')
     client.publish(target_topic, 'hgrp=todo|cmd=getdefaulttodo|descr=show default list of todos')
     client.publish(target_topic, 'hgrp=todo|cmd=cleardefaulttodo|descr=clear the default list of todos')
+    client.publish(target_topic, 'hgrp=todo|cmd=todocolors|descr=get a list of todo colors')
+    client.publish(target_topic, 'hgrp=todo|cmd=settagcolor|descr=set a list of color on a tag (settagcolor color tag)')
 
 def ignore_unlink(file):
     try:
@@ -239,13 +243,61 @@ def get_preferences(nick):
 
     return prefs
 
+def set_preference(nick, key, value):
+    if '!' in nick:
+        nick = nick[0:nick.find('!')]
+
+    cur = con.cursor()
+    cur.execute('INSERT INTO preferences(nick, key, value) VALUES(?, ?, ?) ON CONFLICT(nick, key) DO UPDATE SET value=?', (nick, key, value, value))
+    cur.close()
+
+    con.commit()
+
 def check_preferences_bool(prefs, key, default):
     if key in prefs:
         return prefs[key] == '1'
 
     return default
 
+def check_preferences_str(prefs, key, default):
+    if key in prefs:
+        return prefs[key]
+
+    return default
+
+colors = dict()
+colors['WHITE'] = symbols.WHITE
+colors['BLACK'] = symbols.BLACK
+colors['BLUE'] = symbols.BLUE
+colors['GREEN'] = symbols.GREEN
+colors['LIGHTRED'] = symbols.LIGHTRED
+colors['BROWN'] = symbols.BROWN
+colors['PURPLE'] = symbols.PURPLE
+colors['ORANGE'] = symbols.ORANGE
+colors['YELLOW'] = symbols.YELLOW
+colors['LIGHTGREEN'] = symbols.LIGHTGREEN
+colors['CYAN'] = symbols.CYAN
+colors['LIGHTCYAN'] = symbols.LIGHTCYAN
+colors['LIGHTBLUE'] = symbols.LIGHTBLUE
+colors['PINK'] = symbols.PINK
+colors['GREY'] = symbols.GREY
+colors['LIGHTGRAY'] = symbols.LIGHTGRAY
+
+def name_to_color(name):
+    global colors
+
+    name = name.upper()
+
+    if name in colors:
+        color_code = colors[name]
+
+    else:
+        color_code = symbols.WHITE
+
+    return symbols.RESET + symbols.COLOR + color_code + ',' + symbols.BLACK
+
 def on_message(client, userdata, message):
+    global colors
     global prefix
 
     text = message.payload.decode('utf-8')
@@ -276,7 +328,23 @@ def on_message(client, userdata, message):
 
         command = tokens[0][1:]
 
-        if command == 'addtodo' and tokens[0][0] == prefix:
+        if command == 'todocolors' and tokens[0][0] == prefix:
+            client.publish(response_topic, f'Available color(-names) for todo: {", ".join(colors)}')
+
+        elif command == 'settagcolor' and tokens[0][0] == prefix:
+            if len(tokens) >= 3:
+                if tokens[1].upper() in colors:
+                    set_preference(nick, tokens[2].lower(), tokens[1].upper())
+
+                    client.publish(response_topic, f'Tag {tokens[2].lower()} will now be shown as {tokens[1]}')
+
+                else:
+                    client.publish(response_topic, f'Color {tokens[1]} is not known')
+
+            else:
+                client.publish(response_topic, 'Parameter(s) missing for settagcolor')
+
+        elif command == 'addtodo' and tokens[0][0] == prefix:
             if len(tokens) >= 2:
                 todo_item = text[text.find(' ') + 1:]
 
@@ -558,7 +626,7 @@ def on_message(client, userdata, message):
 
             try:
                 verbose = check_preferences_bool(prefs, 'todo-verbose', True)
-                colors  = check_preferences_bool(prefs, 'todo-colors', False)
+                ccolors = check_preferences_bool(prefs, 'todo-colors',  False)
                 word = tokens[0][0:-1]
 
                 tag = None
@@ -580,9 +648,14 @@ def on_message(client, userdata, message):
                     if verbose:
                         cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
                         row2 = cur.fetchone()
-                        if colors:
-                            if row2 == None or row2[0] == tag:
+                        if ccolors:
+                            tag_color = check_preferences_str(prefs, row2[0].lower(), None) if row2 != None and row2[0] != None else None
+
+                            if row2 == None or (row2[0] == tag and tag_color == None):
                                 item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
+                            elif tag_color != None:
+                                tag_color_code = name_to_color(tag_color)
+                                item = f'{symbols.RESET}{row[0]} {tag_color_code}({row[1]} / {row2[0]}){symbols.RESET}'
                             else:
                                 item = f'\3{0}{row[0]} \3{3}({row[1]} / {row2[0]})\3{0}'
                         else:
