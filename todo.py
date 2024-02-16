@@ -64,6 +64,30 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=todo|cmd=todocolors|descr=get a list of todo colors')
     client.publish(target_topic, 'hgrp=todo|cmd=settagcolor|descr=set a list of color on a tag (settagcolor color tag)')
 
+def find_subject(text):
+    truncated = False
+    after = ''
+
+    if text[0] == '(':
+        end = text.find(')')
+
+        if end != -1:
+            text = text[1:end]
+            after = text[end+1:]
+
+        else:
+            return None, None, None
+
+    else:
+        space = text.find(' ')
+
+        if space != -1:
+            text = text[0:space]
+            truncated = True
+            after = text[space:]
+
+    return text, truncated, after
+
 def ignore_unlink(file):
     try:
         os.unlink(file)
@@ -294,7 +318,7 @@ def name_to_color(name):
     else:
         color_code = symbols.WHITE
 
-    return symbols.RESET + symbols.COLOR + color_code + ',' + symbols.BLACK
+    return symbols.COLOR + symbols.COLOR + color_code + ',' + symbols.BLACK + ' '
 
 def on_message(client, userdata, message):
     global colors
@@ -328,18 +352,28 @@ def on_message(client, userdata, message):
 
         command = tokens[0][1:]
 
+        space = text.find(' ')
+        tag = None
+        truncated = False
+        after_tag = ''
+        if space != -1:
+            tag, truncated, after_tag = find_subject(text[space + 1:].strip())
+
         if command == 'todocolors' and tokens[0][0] == prefix:
             client.publish(response_topic, f'Available color(-names) for todo: {", ".join(colors)}')
 
         elif command == 'settagcolor' and tokens[0][0] == prefix:
-            if len(tokens) >= 3:
-                if tokens[1].upper() in colors:
-                    set_preference(nick, tokens[2].lower(), tokens[1].upper())
+            if after_tag != '':
+                tag, after_tag = after_tag, tag
+                tag = tag.upper()
+                if tag in colors:
+                    after = after.lower()
+                    set_preference(nick, tag, after)
 
-                    client.publish(response_topic, f'Tag {tokens[2].lower()} will now be shown as {tokens[1]}')
+                    client.publish(response_topic, f'Tag {tag} will now be shown as {after}')
 
                 else:
-                    client.publish(response_topic, f'Color {tokens[1]} is not known')
+                    client.publish(response_topic, f'Color {after} is not known')
 
             else:
                 client.publish(response_topic, 'Parameter(s) missing for settagcolor')
@@ -378,11 +412,14 @@ def on_message(client, userdata, message):
         elif command == 'settag' and tokens[0][0] == prefix:
             cur = con.cursor()
 
-            tag = tokens[1].lower()
+            if tag == None or after == '':
+                client.publish(f'{topic_prefix}to/irc/{channel}/notice', f'untag for what?')
+                return
+            tag = tag.lower()
 
             n = 0
 
-            for item in tokens[2:]:
+            for item in after:
                 try:
                     cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag.strip()))
 
@@ -399,7 +436,10 @@ def on_message(client, userdata, message):
         elif command == 'untag' and tokens[0][0] == prefix:
             cur = con.cursor()
 
-            tag = tokens[1].lower()
+            if tag == None:
+                client.publish(f'{topic_prefix}to/irc/{channel}/notice', f'untag for what?')
+                return
+            tag = tag.lower()
 
             n = 0
 
@@ -629,17 +669,10 @@ def on_message(client, userdata, message):
                 ccolors = check_preferences_bool(prefs, 'todo-colors',  False)
                 word = tokens[0][0:-1]
 
-                tag = None
-                i = 1
-                while i < len(tokens):
-                    if tokens[i] != '-v':
-                        tag = tokens[i].lower()
-                        break
-                    i += 1
-
                 if tag == None:
                     cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY nr DESC', (nick,))
                 else:
+                    tag = tag.lower()
                     cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY todo.nr DESC', (nick, tag))
 
                 todo = None
@@ -648,26 +681,32 @@ def on_message(client, userdata, message):
                     if verbose:
                         cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
                         row2 = cur.fetchone()
+                        ctag = row2[0] if row2 != None else None
                         if ccolors:
-                            tag_color = check_preferences_str(prefs, row2[0].lower(), None) if row2 != None and row2[0] != None else None
+                            tag_color = check_preferences_str(prefs, ctag.lower(), None) if ctag != None else None
 
-                            if row2 == None or (row2[0] == tag and tag_color == None):
-                                item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
-                            elif tag_color != None:
+                            if tag_color != None:
                                 tag_color_code = name_to_color(tag_color)
-                                item = f'{symbols.RESET}{row[0]} {tag_color_code}({row[1]} / {row2[0]}){symbols.RESET}'
+                                item = f'{row[0]} {tag_color_code}({row[1]} / {ctag}){symbols.RESET}'
+                                print('grep', item)
+
+                            elif row2 == None or ctag == tag:
+                                item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
+
                             else:
-                                item = f'\3{0}{row[0]} \3{3}({row[1]} / {row2[0]})\3{0}'
+                                item = f'\3{0}{row[0]} \3{3}({row[1]} / {ctag})\3{0}'
+
                         else:
                             if row2 == None or row2[0] == tag:
                                 item = f'{row[0]} ({row[1]})'
+
                             else:
-                                item = f'{row[0]} ({row[1]} / {row2[0]})'
+                                item = f'{row[0]} ({row[1]} / {ctag})'
                     else:
                         item = row[0]
 
                     if todo == None:
-                        todo = item
+                        todo = symbols.RESET + item
 
                     else:
                         todo += ' / ' + item
@@ -687,12 +726,10 @@ def on_message(client, userdata, message):
             cur = con.cursor()
 
             try:
-                tag = None if len(tokens) == 1 else tokens[1]
-
                 if tag == None:
                     cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
                 else:
-                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(), tag))
+                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(), tag.lower()))
                 row = cur.fetchone()
 
                 item = f'{row[0]} ({row[1]})' if row else '-nothing-'
