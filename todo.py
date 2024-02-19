@@ -82,9 +82,9 @@ def find_subject(text):
         space = text.find(' ')
 
         if space != -1:
+            after = text[space:]
             text = text[0:space]
             truncated = True
-            after = text[space:]
 
     return text, truncated, after
 
@@ -359,6 +359,8 @@ def on_message(client, userdata, message):
         if space != -1:
             tag, truncated, after_tag = find_subject(text[space + 1:].strip())
 
+        print(command, tag, truncated, after_tag)
+
         if command == 'todocolors' and tokens[0][0] == prefix:
             client.publish(response_topic, f'Available color(-names) for todo: {", ".join(colors)}')
 
@@ -412,21 +414,21 @@ def on_message(client, userdata, message):
         elif command == 'settag' and tokens[0][0] == prefix:
             cur = con.cursor()
 
-            if tag == None or after == '':
-                client.publish(f'{topic_prefix}to/irc/{channel}/notice', f'untag for what?')
+            if tag == None or after_tag == '':
+                client.publish(f'{topic_prefix}to/irc/{channel}/notice', f'settag for what?')
                 return
             tag = tag.lower()
 
             n = 0
 
-            for item in after:
+            for item in after_tag.split():
                 try:
                     cur.execute('INSERT INTO tags(nr, tagname) VALUES(?, ?)', (item, tag.strip()))
 
                     n += cur.rowcount
 
                 except Exception as e:
-                    pass
+                    client.publish(response_topic, f'Tag {tag} not set on {item}')
 
             con.commit()
             cur.close()
