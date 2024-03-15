@@ -12,14 +12,15 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'localhost'
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'
-channels     = ['test', 'todo', 'knageroe']
+mqtt_server  = 'mqtt.vm.nurd.space'
+mqtt_port    = 1883
+topic_prefix = 'GHBot/'
+channels     = ['nurds', 'nurdbottest', 'nurdsbofh']
 db_file      = 'history.db'
 prefix       = '!'
 
 con = sqlite3.connect(db_file)
+con.set_trace_callback(print)
 
 def init_db():
     global con
@@ -55,13 +56,19 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=history|cmd=personstats|descr=statistics of a person')
 
 def sparkline(numbers):
+    if len(numbers) == 0:
+        return 0, 0, ''
+
     # bar = u'\u9601\u9602\u9603\u9604\u9605\u9606\u9607\u9608'
     bar = chr(9601) + chr(9602) + chr(9603) + chr(9604) + chr(9605) + chr(9606) + chr(9607) + chr(9608)
     barcount = len(bar)
 
     mn, mx = min(numbers), max(numbers)
     extent = mx - mn
-    sparkline = ''.join(bar[min([barcount - 1, int((n - mn) / extent * barcount)])] for n in numbers)
+    if extent != 0:
+        sparkline = ''.join(bar[min([barcount - 1, int((n - mn) / extent * barcount)])] for n in numbers)
+    else:
+        sparkline = '-'
 
     return mn, mx, sparkline
 
@@ -94,8 +101,13 @@ def on_message(client, userdata, message):
 
             query = "INSERT INTO history(`when`, channel, nick, what) VALUES(strftime('%Y-%m-%d %H:%M:%S', 'now'), ?, ?, ?)"
 
+            work_nick = nick.lower()
+            excl = work_nick.find('!')
+            if excl != -1:
+                work_nick = work_nick[0:excl]
+
             cur = con.cursor()
-            cur.execute(query, (channel, nick.lower(), text))
+            cur.execute(query, (channel, work_nick, text))
             cur.close()
 
             con.commit()
@@ -123,19 +135,23 @@ def on_message(client, userdata, message):
                     client.publish(response_topic, out)
 
             elif command == 'personstats' and tokens[0][0] == prefix and len(tokens) >= 2:
-                verbose = '-v' in tokens
+                try:
+                    verbose = '-v' in tokens
 
-                if verbose:
-                    for what in ('%H', '%Y', '%m'):
-                        cur = con.cursor()
-                        cur.execute('SELECT strftime("%s", `when`), COUNT(*) AS n FROM history WHERE channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") GROUP BY strftime("%s", `when`) ORDER BY strftime("%s", `when`) ASC' % (what, what, what), (channel.lower(), tokens[1].lower()))
-                        results = cur.fetchall()
-                        cur.close()
+                    never_there = False
 
-                        if results == None:
-                            client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+                    if verbose:
+                        for what in ('%H', '%Y', '%m'):
+                            cur = con.cursor()
+                            cur.execute('SELECT strftime("%s", `when`), COUNT(*) AS n FROM history WHERE channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") GROUP BY strftime("%s", `when`) ORDER BY strftime("%s", `when`) ASC' % (what, what, what), (channel.lower(), tokens[1].lower()))
+                            results = cur.fetchall()
+                            cur.close()
 
-                        else:
+                            if results == None or len(results) == 0:
+                                client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+                                never_there = True
+                                break
+
                             total = sum([result[1] for result in results])
 
                             percentages = []
@@ -147,16 +163,21 @@ def on_message(client, userdata, message):
 
                             client.publish(response_topic, (', '.join(out)) + ' - ' + sparkline(percentages)[2])
 
-                cur = con.cursor()
-                cur.execute('select what, count(*) from history where channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") group by what order by count(*) desc limit 10', (channel.lower(), tokens[1].lower()))
-                results = cur.fetchall()
-                cur.close()
+                    if never_there == False:
+                        cur = con.cursor()
+                        cur.execute('select what, count(*) from history where channel=? AND nick=? AND (not substr(what, 1, 1)="#") AND (not substr(what, 1, 1)="!") group by what order by count(*) desc limit 10', (channel.lower(), tokens[1].lower()))
+                        results = cur.fetchall()
+                        cur.close()
 
-                if results != None:
-                    client.publish(response_topic, ', '.join([f'{result[0]}: {result[1]}' for result in results]))
+                        if results != None and len(results) > 0:
+                            client.publish(response_topic, ', '.join([f'{result[0]}: {result[1]}' for result in results]))
 
-                else:
-                    client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+                        else:
+                            client.publish(response_topic, f'{tokens[1]} was never in {channel}')
+
+                except Exception as e:
+                    client.publish(response_topic, f'Error: {e}, line number: {e.__traceback__.tb_lineno}')
+                    print(f'{e}, line number: {e.__traceback__.tb_lineno}')
 
             elif (command == 'searchhistory' or command == 'searchhistorybynick') and tokens[0][0] == prefix and len(tokens) >= (3 if command == 'searchhistorybynick' else 2):
                 cur = con.cursor()
@@ -228,4 +249,5 @@ client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
 t = threading.Thread(target=announce_thread, args=(client,))
 t.start()
 
+print('Go!')
 client.loop_forever()
