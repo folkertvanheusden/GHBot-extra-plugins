@@ -4,10 +4,13 @@
 
 # either install 'python3-paho-mqtt' or 'pip3 install paho-mqtt'
 
+import math
 import paho.mqtt.client as mqtt
 import sqlite3
 import threading
 import time
+import pandas as pd
+from prophet import Prophet
 
 import socket
 import sys
@@ -54,6 +57,7 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=history|cmd=searchhistory|descr=when was a text-string seen')
     client.publish(target_topic, 'hgrp=history|cmd=searchhistorybynick|descr=when was a text-string seen, by nick')
     client.publish(target_topic, 'hgrp=history|cmd=personstats|descr=statistics of a person')
+    client.publish(target_topic, 'hgrp=history|cmd=predictactivity|descr=predict your own activity')
 
 def sparkline(numbers):
     if len(numbers) == 0:
@@ -71,6 +75,73 @@ def sparkline(numbers):
         sparkline = '-'
 
     return mn, mx, sparkline
+
+def prophet(client, response_topic, who, channel):
+    print('prophet start')
+
+    try:
+        con = sqlite3.connect(db_file)
+
+        cur = con.cursor()
+        cur.execute("select strftime('%s', strftime('%Y-%m-%d 00:00:00', `when`)), count(*) as n from history where channel=? and nick=? group by date(`when`) order by `when`", (channel, who))
+
+        tsa = []
+        va  = []
+
+        for row in cur:
+            tsa.append(row[0])
+            va .append(row[1])
+
+        cur.close()
+
+        con.close()
+
+        # average
+        ds_a = pd.to_datetime(tsa, unit='s')
+
+        df_a = pd.DataFrame({'ds': ds_a, 'y': va}, columns=['ds', 'y'])
+
+        m = Prophet()
+        m.fit(df_a)
+
+        future = m.make_future_dataframe(periods=31)
+        future.tail()
+
+        forecast = m.predict(future)
+
+        latest_ts = None
+        latest_hr = None
+
+        now = time.time()
+        print(forecast)
+
+        next_ = None
+        for i in range(0, forecast['ds'].count()):
+            if forecast['ds'][i].to_pydatetime().timestamp() > now:
+                next_ = i
+                break
+
+        if next_ == None:
+            client.publish(response_topic, f'No idea!')
+
+        else:
+            dates = []
+            for i in range(0, 3):
+                latest_ts = forecast['ds'][i + next_].to_pydatetime()
+                latest_cnt = forecast['yhat'][i + next_]
+                date = str(latest_ts)
+                date = date.split()[0]
+                dates.append(f'on {date} you will say {math.floor(latest_cnt)} lines of text in {channel}')
+
+            if len(dates) > 0:
+                client.publish(response_topic, f'{", ".join(dates)}')
+            else:
+                client.publish(response_topic, f'Not sure')
+
+    except Exception as e:
+        client.publish(response_topic, f'Exception while predicting activiy of {who} in {channel}: {e}, line number: {e.__traceback__.tb_lineno}')
+
+    print('prophet end')
 
 def on_message(client, userdata, message):
     global history
@@ -220,6 +291,9 @@ def on_message(client, userdata, message):
 
                 else:
                     client.publish(response_topic, out)
+
+            elif command == 'predictactivity' and tokens[0][0] == prefix:
+                prophet(client, response_topic, work_nick, channel)
 
     except Exception as e:
         print(f'{e}, line number: {e.__traceback__.tb_lineno}')
