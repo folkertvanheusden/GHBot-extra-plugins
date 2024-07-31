@@ -15,10 +15,10 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'localhost'
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'
-channels     = ['test', 'knageroe', 'todo']
+mqtt_server  = 'mqtt.vm.nurd.space'
+mqtt_port    = 1883
+topic_prefix = 'GHBot/'
+channels     = ['nurds']
 db_file      = 'todo.db'
 prefix       = '!'
 smtp_server  = '172.29.0.11'
@@ -28,11 +28,15 @@ con = sqlite3.connect(db_file)
 
 cur = con.cursor()
 try:
-    cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL)')
+    cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL, added_when integer, finished_when integer, deleted_when integer)')
+    cur.execute('CREATE TABLE dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL)')
+    cur.execute('CREATE TABLE tags(nr INTEGER not null, tagname varchar(255) not null)')
+    cur.execute('CREATE TABLE preferences(nick varchar(64) not null, key varchar(64) not null, value varchar(64) not null, primary key(nick, key))')
     cur.execute('CREATE INDEX learn_key ON learn(key)')
-    cur.execute('CREATE TABLE tags(nr INTEGER NOT NULL, tagname VARCHAR(255) NOT NULL)')
     cur.execute('create unique index tags_index on tags(nr, tagname)')
+
 except sqlite3.OperationalError as oe:
+    print(oe)
     # should be "table already exists"
     pass
 cur.close()
