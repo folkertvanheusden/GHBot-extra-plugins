@@ -15,10 +15,10 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'localhost'
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'
-channels     = ['test', 'knageroe', 'todo']
+mqtt_server  = 'mqtt.vm.nurd.space'
+mqtt_port    = 1883
+topic_prefix = 'GHBot/'
+channels     = ['nurds']
 db_file      = 'todo.db'
 prefix       = '!'
 smtp_server  = '172.29.0.11'
@@ -36,6 +36,7 @@ try:
     cur.execute('create unique index tags_index on tags(nr, tagname)')
 
 except sqlite3.OperationalError as oe:
+    print(oe)
     # should be "table already exists"
     pass
 cur.close()

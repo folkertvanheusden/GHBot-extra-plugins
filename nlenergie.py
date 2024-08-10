@@ -10,6 +10,7 @@ import math
 import paho.mqtt.client as mqtt
 import pytz
 import requests
+import sqlite3
 import threading
 import time
 import urllib.parse
@@ -18,52 +19,95 @@ import urllib.request
 import socket
 import sys
 
-mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
+mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
+mqtt_port    = 1883
+topic_prefix = 'GHBot/'  # leave this as is
+channels     = ['nurds', 'nurdbottest', 'nurdsbofh']  # TODO: channels to respond to
 prefix       = '!'  # !command, will be updated by ghbot
+
+history = 'nlenergie-history.db'
 
 netherlands_tz = pytz.timezone("Europe/Amsterdam")
 
 bar = chr(9601) + chr(9602) + chr(9603) + chr(9604) + chr(9605) + chr(9606) + chr(9607) + chr(9608)
 barcount = len(bar)
 
+con = sqlite3.connect(history)
+
+cur = con.cursor()
+try:
+    cur.execute('CREATE TABLE nlenergy(`when` DATETIME NOT NULL, id TEXT NOT NULL, power DOUBLE NOT NULL)')
+    cur.execute("CREATE TABLE price(`when` timestamp default (strftime('%s', 'now')), price double not null, primary key(`when`))")
+
+except sqlite3.OperationalError as oe:
+    print(oe)
+    # should be "table already exists"
+    pass
+cur.close()
+
+cur = con.cursor()
+cur.execute('PRAGMA journal_mode=wal')
+cur.execute('PRAGMA encoding="UTF-8"')
+cur.close()
+
+con.commit()
+
 prev_j = None
 prev_j2 = None
 
 data_gen = []
 data_price = []
+lock = threading.Lock()
 
 def collect_thread():
+    global data_gen
+    global data_price
+    global lock
+
+    con = sqlite3.connect(history)
+
     while True:
         try:
-            headers = { 'User-Agent': 'Kiki' }
-            r = requests.get('http://stofradar.nl:9001/electricity/generation', timeout=2, headers=headers)
+            headers = { 'User-Agent': 'nurdbot' }
+            r = requests.get('http://stofradar.nl:9001/electricity/generation?model=ned', timeout=2, headers=headers)
             r2 = requests.get('http://stofradar.nl:9001/electricity/price', timeout=2, headers=headers)
 
             j = json.loads(r.content.decode('ascii'))
-            data_gen.append(j)
 
             j2 = json.loads(r2.content.decode('ascii'))
-            price = j2['current']['price']
-            data_price.append(price)
 
+            lock.acquire()
+            data_gen.append(j)
+            data_price.append(j2)
             while len(data_gen) > 288:
                 del data_gen[0]
                 del data_price[0]
+            lock.release()
 
-            time.sleep(300)
+            cur = con.cursor()
+            for source in j['mix']:
+                cur.execute("INSERT INTO nlenergy(`when`, id, power) VALUES(strftime('%Y-%m-%d %H:%M:%S', 'now'), ?, ?)", (source['id'], source['power']))
+            cur.execute("INSERT INTO price(`when`, price) VALUES(?, ?)", (j2['current']['time'], j2['current']['price']))
+            cur.close()
+            con.commit()
 
-        except:
+            t = time.time()
+            next300 = math.floor(t + 299.999)
+            sleep_n = next300 - t
+            print('sleep:', sleep_n)
+            time.sleep(sleep_n)
+
+        except Exception as e:
             print(f'Exception during "nlenergie": {e}, line number: {e.__traceback__.tb_lineno}')
             # gives skew
             time.sleep(5)
 
+    con.close()
+
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
 
-    client.publish(target_topic, 'cmd=nlenergie|descr=Stroomgebruik in Nederland op dit moment')
+    client.publish(target_topic, 'cmd=nlenergie|descr=Elektriciteitsopwek in Nederland op dit moment')
 
 def name_to_color(name):
     if name == 'solar':
@@ -90,6 +134,9 @@ def on_message(client, userdata, message):
     global prefix
     global prev_j
     global prev_j2
+    global data_gen
+    global data_price
+    global lock
 
     text = message.payload.decode('utf-8')
 
@@ -128,30 +175,24 @@ def on_message(client, userdata, message):
                 very_very_verbose = '-vvv' in parts
                 very_verbose = ('-vv' in parts) or very_very_verbose
 
-                headers = { 'User-Agent': 'Kiki' }
+                j = None
+                j2 = None
+                lock.acquire()
+                if len(data_gen) > 0:
+                    j = data_gen[-1]
+                    j2 = data_price[-1]
+                lock.release()
 
-                r = requests.get('http://stofradar.nl:9001/electricity/generation', timeout=2, headers=headers)
+                if j == None:
+                    client.publish(response_topic, 'No data available yet, please retry in 6 minutes')
+                    return
 
-                r2 = requests.get('http://stofradar.nl:9001/electricity/price', timeout=2, headers=headers)
+                print(j)
+                print(j2)
 
-                try:
-                    j = json.loads(r.content.decode('ascii'))
-                    j2 = json.loads(r2.content.decode('ascii'))
-
-                    t = j['time']
-
-                    prev_j = j
-                    prev_j2 = j2
-
-                except Exception as e:
-                    j = prev_j
-                    j2 = prev_j2
-
-                    t = j['time']
-
-                price = j2['current']['price']
-
+                t = j['time']
                 total = j['total']
+                price = j2['current']['price']
 
                 out = ''
                 outblocks = ''
@@ -184,7 +225,7 @@ def on_message(client, userdata, message):
                 out += f' ({ts})'
 
                 sparkline = ''
-                print(data_gen, data_price)
+                lock.acquire()
                 if very_very_verbose and len(data_gen) >= 2:
                     values = []
                     colors = []
@@ -194,7 +235,8 @@ def on_message(client, userdata, message):
                         best_value  = -1
                         best_name  = None
                         for source in data_gen[i]['mix']:
-                            value = source['power'] * data_price[i]
+                            price = data_price[i]['current']['price']
+                            value = source['power'] * price
                             if value > best_value:
                                 best_value = value
                                 best_name = source['id']
@@ -214,6 +256,7 @@ def on_message(client, userdata, message):
                             sparkline += f'\3{colors[i]}'
                             sparkline += bar[min([barcount - 1, int((values[i] - lowest_value) / extent * barcount)])]
                         sparkline += '\3'
+                lock.release()
 
                 if verbose:
                     client.publish(response_topic, outblocks + f' ({ts} / {outblocks_l})' + sparkline)
