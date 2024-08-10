@@ -96,7 +96,11 @@ def on_message(client, userdata, message):
         if command == 'op':
             try:
                 if not '!' in nick:
-                    client.publish(response_topic, f'Incomplete nick')
+                    client.publish(response_topic, 'Incomplete nick')
+                    return
+
+                if len(text.split()) > 1:
+                    client.publish(response_topic, 'Command does not support parameters')
                     return
 
                 excl = nick.find('!')
