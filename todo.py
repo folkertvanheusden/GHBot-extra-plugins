@@ -28,7 +28,7 @@ con = sqlite3.connect(db_file)
 
 cur = con.cursor()
 try:
-    cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL, added_when integer, finished_when integer, deleted_when integer)')
+    cur.execute('CREATE TABLE todo(nr INTEGER PRIMARY KEY, channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL, added_when integer, finished_when integer, deleted_when integer, inprogress_when integer)')
     cur.execute('CREATE TABLE dflt(channel TEXT NOT NULL, added_by TEXT NOT NULL, value TEXT NOT NULL)')
     cur.execute('CREATE TABLE tags(nr INTEGER not null, tagname varchar(255) not null)')
     cur.execute('CREATE TABLE preferences(nick varchar(64) not null, key varchar(64) not null, value varchar(64) not null, primary key(nick, key))')
@@ -55,6 +55,7 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=todo|cmd=settag|descr=sets a tag on an existing todo-item (settag tag nr nr nr nr...)')
     client.publish(target_topic, 'hgrp=todo|cmd=untag|descr=removes a tag from an existing todo-item (untag tag nr nr nr...)')
     client.publish(target_topic, 'hgrp=todo|cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
+    client.publish(target_topic, 'hgrp=todo|cmd=inprogress|descr=set an item to "in progress" state')
     client.publish(target_topic, 'hgrp=todo|cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, 'hgrp=todo|cmd=todo|descr=get a list of your todos')
     client.publish(target_topic, 'hgrp=todo|cmd=sendtodo|descr=get a list of your todos via e-mail')
@@ -564,11 +565,17 @@ def on_message(client, userdata, message):
 
             cur.close()
 
-        elif (command == 'deltodo' or command == 'ignoretodo') and tokens[0][0] == prefix:
+        elif (command == 'deltodo' or command == 'ignoretodo' or command == 'inprogress') and tokens[0][0] == prefix:
             if len(tokens) >= 2:
                 cur = con.cursor()
 
-                action = 'ignored' if command == 'ignoretodo' else 'deleted'
+                action = '?'
+                if command == 'deltodo':
+                    action = 'deleted'
+                elif command == 'ignoretodo':
+                    action = 'ignored'
+                elif command == 'inprogress':
+                    action = 'inprogressed'
 
                 try:
                     for nr in tokens[1:]:
@@ -585,8 +592,10 @@ def on_message(client, userdata, message):
 
                         if command == 'ignoretodo':
                             cur.execute("UPDATE todo SET deleted_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
-                        else:
+                        elif command == 'deltodo':
                             cur.execute("UPDATE todo SET finished_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
+                        elif command == 'inprogress':
+                            cur.execute("UPDATE todo SET inprogress_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE nr=? AND added_by=?", (nr, nick))
 
                         if cur.rowcount == 1:
                             if row != None:
@@ -644,7 +653,7 @@ def on_message(client, userdata, message):
                 if len(tokens) == 2:
                     nr = int(tokens[1])
 
-                    cur.execute('SELECT finished_when, deleted_when, added_when FROM todo WHERE nr=?', (nr,))
+                    cur.execute('SELECT finished_when, deleted_when, added_when, inprogress_when FROM todo WHERE nr=?', (nr,))
                     row = cur.fetchone()
 
                     if row == None:
@@ -652,12 +661,16 @@ def on_message(client, userdata, message):
                     else:
                         started_at = row[2]
 
+                        ip = ''
+                        if row[3] != None:
+                            ip = f', in progress since {row[3]}'
+
                         if row[0] != None:
-                            client.publish(response_topic, f'{nr} was started at {started_at} and finished on {row[0]}')
+                            client.publish(response_topic, f'{nr} was started at {started_at} and finished on {row[0]}{ip}')
                         elif row[1] != None:
-                            client.publish(response_topic, f'{nr} was started at {started_at} and deleted on {row[0]}')
+                            client.publish(response_topic, f'{nr} was started at {started_at} and deleted on {row[0]}{ip}')
                         else:
-                            client.publish(response_topic, f'{nr} was started at {started_at} and is still on-going')
+                            client.publish(response_topic, f'{nr} was started at {started_at} and is still on-going{ip}')
 
                 else:
                     client.publish(response_topic, f'Parameter mismatch for todostats')
@@ -733,9 +746,9 @@ def on_message(client, userdata, message):
 
             try:
                 if tag == None:
-                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(),))
+                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM()', (nick.lower(),))
                 else:
-                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM() LIMIT 1', (nick.lower(), tag.lower()))
+                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY RANDOM()', (nick.lower(), tag.lower()))
                 row = cur.fetchone()
 
                 item = f'{row[0]} ({row[1]})' if row else '-nothing-'
