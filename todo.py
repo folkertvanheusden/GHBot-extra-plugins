@@ -15,10 +15,10 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'mqtt.vm.nurd.space'
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'
-channels     = ['nurds']
+mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
+mqtt_port    = 18830
+topic_prefix = 'kiki-ng/'  # leave this as is
+channels     = ['test', 'knageroe', 'todo']
 db_file      = 'todo.db'
 prefix       = '!'
 smtp_server  = '172.29.0.11'
@@ -689,16 +689,23 @@ def on_message(client, userdata, message):
                 word = tokens[0][0:-1]
 
                 if tag == None:
-                    cur.execute('SELECT value, nr FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL ORDER BY nr DESC', (nick,))
+                    cur.execute('SELECT value, nr, count(*) as count FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL GROUP BY value ORDER BY count DESC, nr DESC', (nick,))
                 else:
                     tag = tag.lower()
-                    cur.execute('SELECT value, todo.nr FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL ORDER BY todo.nr DESC', (nick, tag))
+                    cur.execute('SELECT value, todo.nr, count(*) as count FROM todo, tags WHERE added_by=? AND tags.tagname=? AND tags.nr=todo.nr AND finished_when is NULL AND deleted_when is NULL group by value ORDER BY count desc, todo.nr DESC', (nick, tag))
 
                 todo = None
 
+                first = None
+                include_counts = False
+
                 for row in cur.fetchall():
+                    if first == None:
+                        first = row[1]
+                        include_counts = row[2] > 1
                     if verbose:
                         cur.execute('SELECT tagname FROM tags WHERE nr=?', (row[1],))
+                        count = row[2]
                         row2 = cur.fetchone()
                         ctag = row2[0] if row2 != None else None
                         if ccolors:
@@ -706,21 +713,34 @@ def on_message(client, userdata, message):
 
                             if tag_color != None:
                                 tag_color_code = name_to_color(tag_color)
-                                item = f'{row[0]} {tag_color_code}({row[1]} / {ctag}){symbols.RESET}'
-                                print('grep', item)
+                                if include_counts:
+                                    item = f'{row[0]} {tag_color_code}(#{row[1]} / {ctag}, {count}){symbols.RESET}'
+                                else:
+                                    item = f'{row[0]} {tag_color_code}(#{row[1]} / {ctag}){symbols.RESET}'
 
                             elif row2 == None or ctag == tag:
-                                item = f'\3{0}{row[0]} \3{3}({row[1]})\3{0}'
+                                if include_counts:
+                                    item = f'\3{0}{row[0]} \3{3}(#{row[1]}, {count})\3{0}'
+                                else:
+                                    item = f'\3{0}{row[0]} \3{3}(#{row[1]})\3{0}'
 
                             else:
-                                item = f'\3{0}{row[0]} \3{3}({row[1]} / {ctag})\3{0}'
+                                if include_counts:
+                                    item = f'\3{0}{row[0]} \3{3}(#{row[1]} / {ctag}, {count})\3{0}'
+                                else:
+                                    item = f'\3{0}{row[0]} \3{3}(#{row[1]} / {ctag})\3{0}'
 
                         else:
                             if row2 == None or row2[0] == tag:
-                                item = f'{row[0]} ({row[1]})'
-
+                                if include_counts:
+                                    item = f'{row[0]} (#{row[1]}, {count})'
+                                else:
+                                    item = f'{row[0]} (#{row[1]})'
                             else:
-                                item = f'{row[0]} ({row[1]} / {ctag})'
+                                if include_counts:
+                                    item = f'{row[0]} (#{row[1]} / {ctag}, {count})'
+                                else:
+                                    item = f'{row[0]} (#{row[1]} / {ctag})'
                     else:
                         item = row[0]
 
