@@ -15,12 +15,8 @@ from prophet import Prophet
 import socket
 import sys
 
-mqtt_server  = 'mqtt.vm.nurd.space'
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'
-channels     = ['nurds', 'nurdbottest', 'nurdsbofh']
+from configuration import *
 db_file      = 'history.db'
-prefix       = '!'
 
 con = sqlite3.connect(db_file)
 con.set_trace_callback(print)

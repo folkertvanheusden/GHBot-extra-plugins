@@ -20,11 +20,7 @@ import urllib.request
 import socket
 import sys
 
-mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
-prefix       = '!'  # !command, will be updated by ghbot
+from configuration import *
 
 netherlands_tz = pytz.timezone("Europe/Amsterdam")
 

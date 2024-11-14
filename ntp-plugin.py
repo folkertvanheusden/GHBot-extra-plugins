@@ -17,12 +17,8 @@ import ntp.packet
 import ntp.util
 
 
-ntp_server   = 'time.lan.nurd.space'
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds', 'nurdbottest']  # TODO: channels to respond to
-prefix       = '!'
+ntp_server   = '172.29.0.132'
+from configuration import *
 
 def NTP_time_string_to_ctime(s):
     if s == None:

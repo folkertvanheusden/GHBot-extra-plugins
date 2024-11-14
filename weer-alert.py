@@ -9,12 +9,7 @@ import sys
 import random
 import requests
 
-
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-prefix       = '!'
-channels     = ['nurds', 'nurdbottest', 'nurdsbofh']
+from configuration import *
 
 import logging
 import os
@@ -124,7 +119,7 @@ def on_message(client, userdata, message):
 
         if command == 'weer-alert' and tokens[0][0] == prefix:
             try:
-                content = do_get().replace('\n', ' ')
+                content = do_get().replace('\n', ' ').replace('[IMPACT]', '').replace('[Meer details]', '').replace('  ', ' ')
                 client.publish(response_topic, content)
 
             except Exception as e:

@@ -15,12 +15,8 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'knageroe', 'todo']
+from configuration import *
 db_file      = 'todo.db'
-prefix       = '!'
 smtp_server  = '172.29.0.11'
 smtp_from    = 'ghbot@vanheusden.com'
 
@@ -57,6 +53,7 @@ def announce_commands(client):
     client.publish(target_topic, 'hgrp=todo|cmd=deltodo|descr=delete one or more items from your todo-list (seperated by space)')
     client.publish(target_topic, 'hgrp=todo|cmd=inprogress|descr=set an item to "in progress" state')
     client.publish(target_topic, 'hgrp=todo|cmd=ignoretodo|descr=ignore one or more items from your todo-list (seperated by space)')
+    client.publish(target_topic, 'hgrp=todo|cmd=ignorebynr|descr=ignore one or more items from your todo-list: match everything by description same as "nr"')
     client.publish(target_topic, 'hgrp=todo|cmd=todo|descr=get a list of your todos')
     client.publish(target_topic, 'hgrp=todo|cmd=sendtodo|descr=get a list of your todos via e-mail')
     client.publish(target_topic, 'hgrp=todo|cmd=todotags|descr=get a list of your tags')
@@ -564,6 +561,24 @@ def on_message(client, userdata, message):
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
 
             cur.close()
+
+        elif command == 'ignorebynr' and tokens[0][0] == prefix:
+            if len(tokens) != 2:
+                client.publish(response_topic, 'Parameter missing')
+
+            else:
+                try:
+                    cur = con.cursor()
+                    cur.execute('SELECT value FROM todo WHERE added_by=? AND finished_when is NULL AND deleted_when is NULL AND nr=? LIMIT 1', (nick, tokens[1], ))
+                    row = cur.fetchone()
+                    match_by = row[0]
+                    cur.execute("UPDATE todo SET deleted_when=strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE value=? AND added_by=?", (match_by, nick))
+                    client.publish(response_topic, f'{cur.rowcount} items affected')
+
+                except Exception as e:
+                    client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
+
+                cur.close()
 
         elif (command == 'deltodo' or command == 'ignoretodo' or command == 'inprogress') and tokens[0][0] == prefix:
             if len(tokens) >= 2:

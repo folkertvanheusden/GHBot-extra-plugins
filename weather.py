@@ -13,12 +13,7 @@ from weathercfg import *
 # weathercfg should contain:
 #appid = '...'
 
-
-mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
-prefix       = '!'
+from configuration import *
 
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
