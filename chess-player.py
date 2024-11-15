@@ -14,12 +14,7 @@ import time
 import sys
 import random
 
-
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds', 'nurdbottest']  # TODO: channels to respond to
-prefix       = '!'
+from configuration import *
 use_lichess  = True
 
 b = chess.Board()

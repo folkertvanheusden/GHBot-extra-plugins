@@ -12,11 +12,7 @@ import sys
 
 
 gpsd_server  = ('time.lan.nurd.space', 2947)
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds', 'nurdbottest']  # TODO: channels to respond to
-prefix       = '!'
+from configuration import *
 
 gd_lock      = threading.Lock()
 gps_data     = dict()

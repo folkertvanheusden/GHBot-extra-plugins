@@ -19,11 +19,7 @@ import urllib.request
 import socket
 import sys
 
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds', 'nurdbottest', 'nurdsbofh']  # TODO: channels to respond to
-prefix       = '!'  # !command, will be updated by ghbot
+from configuration import *
 
 history = 'nlenergie-history.db'
 

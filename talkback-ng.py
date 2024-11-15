@@ -15,20 +15,26 @@ import socket
 import sys
 
 from configuration import *
-prompt       = 'kiki:'
+prompt = 'kiki:'
 
 con = sqlite3.connect('history.db')
 
-def counter(s):
-    m = dict()
+def compare(a, b):
+    aparts = a.lower().split()
+    bparts = b.lower().split()
 
-    for c in s:
-        if c in m:
-            m[c] += 1
-        else:
-            m[c] = 1
+    match_count = 0
+    for apart in aparts:
+        if apart in bparts:
+            match_count += 1
+    return match_count / len(aparts)
 
-    return m
+def compare_detail(a, b):
+    match_count = 0
+    for apart in a:
+        if apart in b:
+            match_count += 1
+    return match_count / len(a)
 
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
@@ -65,35 +71,45 @@ def on_message(client, userdata, message):
 
     try:
         reply_to = text[text.find(' ') + 1:].strip()
-        reply_to_counts = counter(reply_to)
 
         cur = con.cursor()
-        cur.execute('SELECT what FROM history WHERE length(what) > 5 ORDER BY RANDOM() LIMIT 1000')
+        cur.execute('SELECT what, `when` FROM history WHERE length(what) > 1 ORDER BY RANDOM() LIMIT 2500')
         rows = cur.fetchall()
         cur.close()
 
-        best = None
-        best_val = 1000000000000000
+        best_ts = None
+        best_value = -1.
+        best_value_detail = -1.
+        best_text = None
 
         for row in rows:
-            row_counts = counter(row[0])
-            cur_val = math.sqrt(sum((reply_to_counts.get(d,0) - row_counts.get(d,0))**2 for d in set(reply_to_counts) | set(row_counts)))
+            match_value = compare(row[0], reply_to)
+            match_value_detail = compare_detail(row[0], reply_to)
+            if match_value > best_value or (match_value == best_value and match_value_detail > best_value_detail):
+                best_value = match_value
+                best_value_detail = match_value_detail
+                best_ts = row[1]
+                best_text = row[0]
 
-            if cur_val < best_val and cur_val != 0:
-                best_val = cur_val
-                best = row[0]
-
-        if best != None:
+        if best_ts != None:
+            print(f'Selected "{best_text}" ({best_value}/{best_value_detail}, of {best_ts}) to respond to')
             if '!' in nick:
                 nick = nick[0:nick.find('!')]
 
-            colon = best.find(':')
-            space = best.find(' ')
-            if colon != -1 and space != -1 and space > colon:
-                best = best[best.find(':') + 1].strip()
+            cur = con.cursor()
+            cur.execute('SELECT what FROM history WHERE `when` > ? ORDER BY `when` LIMIT 1', (best_ts,))
+            row = cur.fetchone()[0]
+            cur.close()
+
+            print(f'Using: \"{row}\"')
+
+            space = row.find(' ')
+            colon = row.find(':')
+            if colon != -1 and colon < space:
+                row = row[colon + 1:].strip()
 
             response_topic = f'{topic_prefix}to/irc/{channel}/privmsg'
-            client.publish(response_topic, f'{nick}: {best}')
+            client.publish(response_topic, f'{nick}: {row}')
 
     except Exception as e:
         print(f'{e}, line number: {e.__traceback__.tb_lineno}')

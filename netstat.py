@@ -13,14 +13,11 @@ import sys
 import random
 
 
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds', 'nurdsbofh', 'nurdbottest']
-prefix       = '!'
+from configuration import *
 snmp_com     = 'NURDs'
 snmp_host    = 'gateway.lan.nurd.space'
 snmp_version = 1
+
 
 def WAN_stat(session):
     in_count = int(session.get('IF-MIB::ifInOctets.10').value)

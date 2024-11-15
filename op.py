@@ -12,12 +12,8 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-channels     = ['nurds']  # TODO: channels to respond to
-prefix       = '!'  # !command, will be updated by ghbot
-db           = 'op.db'
+from configuration import *
+db = 'op.db'
 
 con = sqlite3.connect(db)
 

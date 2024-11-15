@@ -10,11 +10,7 @@ import random
 import requests
 
 
-mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
-mqtt_port    = 1883
-topic_prefix = 'GHBot/'  # leave this as is
-prefix       = '!'
-channels     = ['nurds', 'nurdbottest', 'nurdsbofh']
+from configuration import *
 terror_url   = 'https://www.nctv.nl/onderwerpen/dtn'
 
 def announce_commands(client):
