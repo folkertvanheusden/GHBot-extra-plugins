@@ -69,7 +69,7 @@ def collect_thread():
     while True:
         try:
             headers = { 'User-Agent': 'nurdbot' }
-            r = requests.get('http://stofradar.nl:9001/electricity/generation?model=ned', timeout=2, headers=headers)
+            r = requests.get('http://stofradar.nl:9001/electricity/generation', timeout=2, headers=headers)
             r2 = requests.get('http://stofradar.nl:9001/electricity/price', timeout=2, headers=headers)
 
             j = json.loads(r.content.decode('ascii'))
