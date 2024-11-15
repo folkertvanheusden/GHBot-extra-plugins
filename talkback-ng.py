@@ -15,7 +15,6 @@ import socket
 import sys
 
 from configuration import *
-prompt = 'kiki:'
 
 con = sqlite3.connect('history.db')
 
@@ -83,13 +82,14 @@ def on_message(client, userdata, message):
         best_text = None
 
         for row in rows:
-            match_value = compare(row[0], reply_to)
-            match_value_detail = compare_detail(row[0], reply_to)
-            if match_value > best_value or (match_value == best_value and match_value_detail > best_value_detail):
-                best_value = match_value
-                best_value_detail = match_value_detail
-                best_ts = row[1]
-                best_text = row[0]
+            if row[0] != reply_to and row[0][0] != prefix:
+                match_value = compare(row[0], reply_to)
+                match_value_detail = compare_detail(row[0], reply_to)
+                if match_value > best_value or (match_value == best_value and match_value_detail > best_value_detail):
+                    best_value = match_value
+                    best_value_detail = match_value_detail
+                    best_ts = row[1]
+                    best_text = row[0]
 
         if best_ts != None:
             print(f'Selected "{best_text}" ({best_value}/{best_value_detail}, of {best_ts}) to respond to')
@@ -97,7 +97,7 @@ def on_message(client, userdata, message):
                 nick = nick[0:nick.find('!')]
 
             cur = con.cursor()
-            cur.execute('SELECT what FROM history WHERE `when` > ? ORDER BY `when` LIMIT 1', (best_ts,))
+            cur.execute('SELECT what FROM history WHERE `when` > ? AND substr(what, 1, 1) != "!" ORDER BY `when` LIMIT 1', (best_ts,))
             row = cur.fetchone()[0]
             cur.close()
 
