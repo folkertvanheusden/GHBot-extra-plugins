@@ -28,6 +28,7 @@ def WAN_stat(session):
 
     return in_count, out_count
 
+
 def get_n_DHCP():
     try:
         r = requests.get('https://dns.lan.nurd.space/hosts.txt', verify=False)
@@ -44,10 +45,11 @@ def get_n_DHCP():
 
     return -1, 0
 
+
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
-
     client.publish(target_topic, 'cmd=netstat|descr=Network statistics')
+
 
 def on_message(client, userdata, message):
     global prefix
@@ -79,7 +81,6 @@ def on_message(client, userdata, message):
         response_topic = f'{topic_prefix}to/irc/{channel}/notice'
 
         tokens  = text.split(' ')
-
         command = tokens[0][1:]
 
         if command == 'netstat' and tokens[0][0] == prefix:
@@ -116,6 +117,7 @@ def on_connect(client, userdata, flags, rc):
 
     client.subscribe(f'{topic_prefix}from/bot/command')
 
+
 def announce_thread(client):
     while True:
         try:
@@ -125,6 +127,7 @@ def announce_thread(client):
 
         except Exception as e:
             print(f'Failed to announce: {e}')
+
 
 client = mqtt.Client(sys.argv[0], clean_session=False)
 client.on_message = on_message
