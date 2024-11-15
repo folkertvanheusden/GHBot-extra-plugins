@@ -60,8 +60,8 @@ def on_message(client, userdata, message):
                 r = requests.get(terror_url)
                 soup = BeautifulSoup(r.content, features='lxml')
                 descr = soup.find('meta', property='og:description')
-
-                client.publish(response_topic, str(descr['content']))
+                msg = str(descr['content'])
+                client.publish(response_topic, msg[0:msg.find('.')])
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
