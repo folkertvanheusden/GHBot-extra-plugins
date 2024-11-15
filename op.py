@@ -12,10 +12,10 @@ import time
 import socket
 import sys
 
-mqtt_server  = 'localhost'   # TODO: hostname of MQTT server
-mqtt_port    = 18830
-topic_prefix = 'kiki-ng/'  # leave this as is
-channels     = ['test', 'todo', 'knageroe']  # TODO: channels to respond to
+mqtt_server  = 'mqtt.vm.nurd.space'   # TODO: hostname of MQTT server
+mqtt_port    = 1883
+topic_prefix = 'GHBot/'  # leave this as is
+channels     = ['nurds']  # TODO: channels to respond to
 prefix       = '!'  # !command, will be updated by ghbot
 db           = 'op.db'
 
@@ -96,11 +96,7 @@ def on_message(client, userdata, message):
         if command == 'op':
             try:
                 if not '!' in nick:
-                    client.publish(response_topic, 'Incomplete nick')
-                    return
-
-                if len(text.split()) > 1:
-                    client.publish(response_topic, 'Command does not support parameters')
+                    client.publish(response_topic, f'Incomplete nick')
                     return
 
                 excl = nick.find('!')
