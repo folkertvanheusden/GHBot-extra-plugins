@@ -15,7 +15,6 @@ import socket
 import sys
 
 from configuration import *
-prompt       = 'kiki:'
 
 con = sqlite3.connect('history.db')
 

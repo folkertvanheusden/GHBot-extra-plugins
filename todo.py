@@ -17,8 +17,6 @@ import sys
 
 from configuration import *
 db_file      = 'todo.db'
-smtp_server  = '172.29.0.11'
-smtp_from    = 'ghbot@vanheusden.com'
 
 con = sqlite3.connect(db_file)
 

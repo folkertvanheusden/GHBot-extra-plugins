@@ -12,11 +12,7 @@ import time
 import sys
 import random
 
-
 from configuration import *
-snmp_com     = 'NURDs'
-snmp_host    = 'gateway.lan.nurd.space'
-snmp_version = 1
 
 
 def WAN_stat(session):

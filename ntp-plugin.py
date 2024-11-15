@@ -16,9 +16,8 @@ import ntp.ntpc
 import ntp.packet
 import ntp.util
 
-
-ntp_server = 'time.lan.nurd.space'
 from configuration import *
+
 
 def NTP_time_string_to_ctime(s):
     if s == None:

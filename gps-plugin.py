@@ -10,8 +10,6 @@ import time
 import socket
 import sys
 
-
-gpsd_server  = ('time.lan.nurd.space', 2947)
 from configuration import *
 
 gd_lock      = threading.Lock()

@@ -16,7 +16,7 @@ import socket
 import sys
 
 from configuration import *
-db_file      = 'history.db'
+db_file = 'history.db'
 
 con = sqlite3.connect(db_file)
 con.set_trace_callback(print)
