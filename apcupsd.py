@@ -120,6 +120,14 @@ def poll_thread(client):
     while True:
         try:
             data = get_data()
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(influx_server)
+            now = int(time.time())
+            s.send(('ups-BCHARGE ' + data['BCHARGE'].split()[0] + f' {now}\n').encode('ascii'))
+            s.send(('ups-TIMELEFT ' + data['TIMELEFT'].split()[0] + f' {now}\n').encode('ascii'))
+            s.close()
+
             if data['STATUS'] != pstate:
                 pstate = data['STATUS']
 
@@ -130,7 +138,7 @@ def poll_thread(client):
                     client.publish(topic, response)
 
         except Exception as e:
-            pass
+            print(e)
 
         time.sleep(5)
 
@@ -139,10 +147,10 @@ client.on_message = on_message
 client.on_connect = on_connect
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
 
-t = threading.Thread(target=poll_thread, args=(client,))
-t.start()
+t1 = threading.Thread(target=poll_thread, args=(client,))
+t1.start()
 
-t = threading.Thread(target=announce_thread, args=(client,))
-t.start()
+t2 = threading.Thread(target=announce_thread, args=(client,))
+t2.start()
 
 client.loop_forever()
