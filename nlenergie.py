@@ -135,8 +135,9 @@ def on_message(client, userdata, message):
     global lock
 
     text = message.payload.decode('utf-8')
-
     topic = message.topic[len(topic_prefix):]
+
+    print(text, topic)
 
     if topic == 'from/bot/command' and text == 'register':
         announce_commands(client)
@@ -156,6 +157,7 @@ def on_message(client, userdata, message):
     nick    = parts[3] if len(parts) >= 4 else 'jemoeder'  # default nick if it can't be deduced
 
     if text[0] != prefix:
+        print('hier')
         return
 
     command = text[1:].split(' ')[0]
@@ -264,9 +266,11 @@ def on_message(client, userdata, message):
                 client.publish(response_topic, f'Exception during "nlenergie": {e}, line number: {e.__traceback__.tb_lineno}')
 
 def on_connect(client, userdata, flags, rc):
-    client.subscribe(f'{topic_prefix}from/irc/#')
-
-    client.subscribe(f'{topic_prefix}from/bot/command')
+    try:
+        client.subscribe(f'{topic_prefix}from/irc/#')
+        client.subscribe(f'{topic_prefix}from/bot/command')
+    except Exception as e:
+        print(e)
 
 def announce_thread(client):
     while True:
@@ -281,6 +285,7 @@ def announce_thread(client):
 client = mqtt.Client(f'{socket.gethostname()}_{sys.argv[0]}', clean_session=False)
 client.on_message = on_message
 client.on_connect = on_connect
+print(mqtt_server, mqtt_port)
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
 
 t = threading.Thread(target=collect_thread)

@@ -11,3 +11,4 @@ snmp_version = 1
 ntp_server   = 'time.lan.nurd.space'
 smtp_server  = 'services.lan.nurd.space'
 smtp_from    = 'ghbot@nurdspace.nl'
+apcupsd      = '10.208.3.61'
