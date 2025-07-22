@@ -54,7 +54,13 @@ def on_message(client, userdata, message):
 
         if command == 'internet' and tokens[0][0] == prefix:
             try:
-                client.publish(response_topic, f'bits per second (receive) for the last 5 seconds: {Bps * 8}')
+                if Bps <= 1024:
+                    b = f'{Bps * 8}'
+                elif Bps <= 1024 * 1024:
+                    b = f'{round(Bps * 8 / 1024)} Kib'
+                else:  # elif Bps < 1024 * 1024 * 1024:
+                    b = f'{round(Bps * 8 / 1024 / 1024)} Mib'
+                client.publish(response_topic, f'average bits per second (receive) over the last 5 seconds: {b}')
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
