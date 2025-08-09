@@ -12,7 +12,31 @@ import requests
 
 from configuration import *
 
-Bps = None
+Bps_rx = [ ]
+Bps_tx = [ ]
+
+def abbr(Bps):
+    if Bps <= 1024:
+        b = f'{Bps * 8}'
+    elif Bps <= 1024 * 1024:
+        b = f'{round(Bps * 8 / 1024)} Kib'
+    else:  # elif Bps < 1024 * 1024 * 1024:
+        b = f'{round(Bps * 8 / 1024 / 1024)} Mib'
+    return b
+
+def sparkline(numbers):
+    # bar = u'\u9601\u9602\u9603\u9604\u9605\u9606\u9607\u9608'
+    bar = chr(9601) + chr(9602) + chr(9603) + chr(9604) + chr(9605) + chr(9606) + chr(9607) + chr(9608)
+    barcount = len(bar)
+
+    mn, mx = min(numbers), max(numbers)
+    extent = mx - mn
+    if extent != 0:
+        sparkline = ''.join(bar[min([barcount - 1, int((n - mn) / extent * barcount)])] for n in numbers)
+    else:
+        sparkline = '- n.a. (yet) -'
+
+    return mn, mx, sparkline
 
 def announce_commands(client):
     target_topic = f'{topic_prefix}to/bot/register'
@@ -54,13 +78,21 @@ def on_message(client, userdata, message):
 
         if command == 'internet' and tokens[0][0] == prefix:
             try:
-                if Bps <= 1024:
-                    b = f'{Bps * 8}'
-                elif Bps <= 1024 * 1024:
-                    b = f'{round(Bps * 8 / 1024)} Kib'
-                else:  # elif Bps < 1024 * 1024 * 1024:
-                    b = f'{round(Bps * 8 / 1024 / 1024)} Mib'
-                client.publish(response_topic, f'average bits per second (receive) over the last 5 seconds: {b}')
+                if len(Bps_rx) > 0:
+                    b_rx = abbr(Bps_rx[-1])
+                    b_tx = abbr(Bps_tx[-1])
+
+                    if '-v' in tokens and len(Bps_rx) >= 2 and len(Bps_tx) >= 2:
+                        b_rx_sp = sparkline(Bps_rx)
+                        b_tx_sp = sparkline(Bps_tx)
+
+                        client.publish(response_topic, f'average bits per second over the last 5 seconds, receive: {b_rx} ({b_rx_sp[2]}) and transmit: {b_tx} ({b_tx_sp[2]})')
+
+                    else:
+                        client.publish(response_topic, f'average bits per second over the last 5 seconds, receive: {b_rx} and transmit: {b_tx}')
+
+                else:
+                    client.publish(response_topic, f'witnie')
 
             except Exception as e:
                 client.publish(response_topic, f'Exception: {e}, line number: {e.__traceback__.tb_lineno}')
@@ -83,23 +115,39 @@ def announce_thread(client):
             time.sleep(0.5)
 
 def snmp_thread():
-    global Bps
+    global Bps_rx
+    global Bps_tx
 
-    previous = None
+    previous_rx = None
+    previous_tx = None
 
     while True:
         try:
             with Engine(SNMPv2c, defaultCommunity=b'public') as engine:
                 host = engine.Manager('10.208.0.1')
+
                 response = host.get('1.3.6.1.2.1.31.1.1.1.6.2')
-                cur_amount = response[0].value.value
-                if not previous is None:
-                    Bps = (cur_amount - previous) / 5
-                previous = cur_amount
+                cur_amount_rx = response[0].value.value
+                if not previous_rx is None:
+                    Bps_rx.append((cur_amount_rx - previous_rx) / 5)
+                previous_rx = cur_amount_rx
+
+                response = host.get('1.3.6.1.2.1.31.1.1.1.10.2')
+                cur_amount_tx = response[0].value.value
+                if not previous_tx is None:
+                    Bps_tx.append((cur_amount_tx - previous_tx) / 5)
+                previous_tx = cur_amount_tx
+
+                while len(Bps_rx) > 10:
+                    del Bps_rx[0]
+
+                while len(Bps_tx) > 10:
+                    del Bps_tx[0]
 
         except Exception as e:
             print(f'Failed to announce: {e}')
-            previous = None
+            previous_rx = None
+            previous_tx = None
 
         time.sleep(5)
 
