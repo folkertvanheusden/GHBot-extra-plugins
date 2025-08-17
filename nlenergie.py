@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /usr/bin/env python3
 
 # by FvH, released under Apache License v2.0
 
@@ -282,10 +282,9 @@ def announce_thread(client):
         except Exception as e:
             print(f'Failed to announce: {e}')
 
-client = mqtt.Client(f'{socket.gethostname()}_{sys.argv[0]}', clean_session=False)
+client = mqtt.Client()
 client.on_message = on_message
 client.on_connect = on_connect
-print(mqtt_server, mqtt_port)
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
 
 t = threading.Thread(target=collect_thread)

@@ -1,3 +1,9 @@
+apt install libsnmp-dev
+pip3 install -r requirements.txt
+
+do not run ntp-plugin.py from a venv, it requires python3-ntplib
+
+
 history: 
 * cmd=firstseen|descr=when was a person first seen
 * cmd=searchhistory|descr=when was a text-string seen

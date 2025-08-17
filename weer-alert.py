@@ -141,7 +141,7 @@ def announce_thread(client):
         except Exception as e:
             print(f'Failed to announce: {e}')
 
-client = mqtt.Client(sys.argv[0], clean_session=False)
+client = mqtt.Client()
 client.on_message = on_message
 client.on_connect = on_connect
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address='')

@@ -1,0 +1,10 @@
+chess
+easysnmp
+geocoder
+irccodes
+paho-mqtt
+ping3
+prophet
+requests
+snmp
+Wikipedia-API

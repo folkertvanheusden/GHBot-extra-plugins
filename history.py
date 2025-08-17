@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /usr/bin/env python3
 
 # by FvH, released under Apache License v2.0
 
@@ -311,7 +311,7 @@ def announce_thread(client):
 
 init_db()
 
-client = mqtt.Client(f'{socket.gethostname()}_{sys.argv[0]}', clean_session=False)
+client = mqtt.Client()
 client.on_message = on_message
 client.on_connect = on_connect
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")

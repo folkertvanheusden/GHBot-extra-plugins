@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /usr/bin/env python3
 
 import math
 import paho.mqtt.client as mqtt
@@ -57,7 +57,7 @@ def on_message(client, userdata, message):
             try:
                 query = text[text.find(' ') + 1:].strip()
                 if query == '':
-                    query = 'Groningen'
+                    query = 'Wageningen'
 
                 r     = requests.get(f'https://api.openweathermap.org/data/2.5/weather?q={query}&mode=xml&lang=en&units=metric&appid={appid}')
                 data  = r.content.decode('utf8')
@@ -118,7 +118,7 @@ def announce_thread(client):
         except Exception as e:
             print(f'Failed to announce: {e}')
 
-client = mqtt.Client(sys.argv[0], clean_session=False)
+client = mqtt.Client()
 client.on_message = on_message
 client.on_connect = on_connect
 client.connect(mqtt_server, port=mqtt_port, keepalive=4, bind_address="")
