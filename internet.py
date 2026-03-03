@@ -111,7 +111,7 @@ def announce_thread(client):
             time.sleep(4.1)
 
         except Exception as e:
-            print(f'Failed to announce: {e}')
+            print(f'Failed to announce: {e}, line number: {e.__traceback__.tb_lineno}')
             time.sleep(0.5)
 
 def snmp_thread():
@@ -126,13 +126,13 @@ def snmp_thread():
             with Engine(SNMPv2c, defaultCommunity=b'public') as engine:
                 host = engine.Manager('10.208.0.1')
 
-                response = host.get('1.3.6.1.2.1.31.1.1.1.6.2')
+                response = host.get('1.3.6.1.2.1.31.1.1.1.7.3')
                 cur_amount_rx = response[0].value.value
                 if not previous_rx is None:
                     Bps_rx.append((cur_amount_rx - previous_rx) / 5)
                 previous_rx = cur_amount_rx
 
-                response = host.get('1.3.6.1.2.1.31.1.1.1.10.2')
+                response = host.get('1.3.6.1.2.1.31.1.1.1.11.3')
                 cur_amount_tx = response[0].value.value
                 if not previous_tx is None:
                     Bps_tx.append((cur_amount_tx - previous_tx) / 5)
@@ -145,7 +145,7 @@ def snmp_thread():
                     del Bps_tx[0]
 
         except Exception as e:
-            print(f'Failed to announce: {e}')
+            print(f'Failed to do snmp queries: {e}, line number: {e.__traceback__.tb_lineno}')
             previous_rx = None
             previous_tx = None
 
